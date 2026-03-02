@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
 import type { WhaleConfig } from '../config.js'
 
 export interface TauriWindowConf {
@@ -36,6 +38,42 @@ export interface TauriConf {
 }
 
 export type TauriConfMode = 'development' | 'production'
+const DEFAULT_BUNDLE_ICONS = [
+  'icons/32x32.png',
+  'icons/128x128.png',
+  'icons/128x128@2x.png',
+  'icons/icon.icns',
+  'icons/icon.ico',
+]
+
+function toPosixPath(path: string): string {
+  return path.replace(/\\/g, '/')
+}
+
+function resolveBundleIcon(config: WhaleConfig, projectRoot: string): string | undefined {
+  const srcTauriRoot = join(projectRoot, 'src-tauri')
+  const configuredIcon = config.app.icon
+  if (configuredIcon) {
+    const configuredAbsPath = resolve(projectRoot, configuredIcon)
+    if (existsSync(configuredAbsPath)) {
+      return toPosixPath(relative(srcTauriRoot, configuredAbsPath))
+    }
+  }
+
+  // Prefer assets/icon.png from current project or any parent workspace.
+  let cursor = projectRoot
+  while (true) {
+    const candidate = join(cursor, 'assets', 'icon.png')
+    if (existsSync(candidate)) {
+      return toPosixPath(relative(srcTauriRoot, candidate))
+    }
+    const parent = dirname(cursor)
+    if (parent === cursor) break
+    cursor = parent
+  }
+
+  return undefined
+}
 
 function mapWindowPosition(
   position?: { x: number; y: number } | string,
@@ -80,10 +118,12 @@ function toTauriWindow(
 export function generateTauriConf(
   config: WhaleConfig,
   mode: TauriConfMode = 'development',
+  projectRoot: string = process.cwd(),
 ): TauriConf {
   const windows = Object.entries(config.windows).map(([label, wc]) =>
     toTauriWindow(label, wc, mode),
   )
+  const bundleIcon = resolveBundleIcon(config, projectRoot)
 
   const buildConf: TauriConf['build'] =
     mode === 'development'
@@ -110,13 +150,7 @@ export function generateTauriConf(
     },
     bundle: {
       active: mode === 'production',
-      icon: [
-        'icons/32x32.png',
-        'icons/128x128.png',
-        'icons/128x128@2x.png',
-        'icons/icon.icns',
-        'icons/icon.ico',
-      ],
+      icon: bundleIcon ? [bundleIcon] : DEFAULT_BUNDLE_ICONS,
     },
   }
 }

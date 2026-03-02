@@ -14,7 +14,7 @@ export async function generateConfig(
 
   console.log(pc.cyan('[whale]'), 'Generating config...')
   const config = await loadConfig(absoluteConfigPath)
-  const tauriConf = generateTauriConf(config, 'development')
+  const tauriConf = generateTauriConf(config, 'development', projectRoot)
 
   mkdirSync(dirname(absoluteOutPath), { recursive: true })
   writeFileSync(absoluteOutPath, `${JSON.stringify(tauriConf, null, 2)}\n`, 'utf-8')

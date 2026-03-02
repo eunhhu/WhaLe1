@@ -12,8 +12,15 @@ export interface WindowConfig {
   clickThrough?: boolean
 }
 
+export interface AppConfig {
+  name: string
+  version: string
+  identifier: string
+  icon?: string
+}
+
 export interface WhaleConfig {
-  app: { name: string; version: string; identifier: string }
+  app: AppConfig
   windows: Record<string, WindowConfig & { entry: string }>
   store?: { persist?: boolean; persistPath?: string }
   build?: { outDir?: string }

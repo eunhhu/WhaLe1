@@ -66,7 +66,7 @@ export async function dev(configPath: string): Promise<void> {
 
     // 3. Generate tauri.conf.json
     console.log(pc.dim('  Generating tauri.conf.json...'))
-    const tauriConf = generateTauriConf(config, 'development')
+    const tauriConf = generateTauriConf(config, 'development', projectRoot)
     const tauriConfPath = join(projectRoot, '.whale', 'tauri.conf.json')
     writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2))
 
