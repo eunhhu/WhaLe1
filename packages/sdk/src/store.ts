@@ -1,9 +1,11 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { createStore, produce } from 'solid-js/store'
-import { onCleanup } from 'solid-js'
+import { getOwner, onCleanup } from 'solid-js'
 import type { SyncStore } from './types'
+import {
+  getCurrentWindowLabel,
+  safeInvokeVoid,
+  safeListen,
+} from './tauri'
 
 export function createSyncStore<T extends Record<string, any>>(
   name: string,
@@ -12,20 +14,17 @@ export function createSyncStore<T extends Record<string, any>>(
   const [store, setStore] = createStore<T>({ ...defaults })
 
   // Rust에 store 등록
-  invoke('store_register', { name, defaults })
+  safeInvokeVoid('store_register', { name, defaults })
 
   // 현재 윈도우의 구독 등록 — defaults의 모든 키를 구독
   const keys = Object.keys(defaults)
-  let windowLabel: string | undefined
-  try {
-    windowLabel = getCurrentWebviewWindow().label
-    invoke('store_subscribe', { name, window: windowLabel, keys })
-  } catch {
-    // Tauri 환경이 아닌 경우 (테스트 등) 무시
+  const windowLabel = getCurrentWindowLabel()
+  if (windowLabel) {
+    safeInvokeVoid('store_subscribe', { name, window: windowLabel, keys })
   }
 
   // Tauri 이벤트 수신 — 다른 윈도우 또는 Frida에서 변경된 값 반영
-  const unlisten = listen<{ store: string; patch: Partial<T> }>(
+  const unlisten = safeListen<{ store: string; patch: Partial<T> }>(
     'store:changed',
     (event) => {
       if (event.payload.store !== name) return
@@ -40,15 +39,13 @@ export function createSyncStore<T extends Record<string, any>>(
   )
 
   // Cleanup
-  try {
+  if (getOwner()) {
     onCleanup(() => {
       unlisten.then((fn) => fn())
       if (windowLabel) {
-        invoke('store_unsubscribe', { name, window: windowLabel })
+        safeInvokeVoid('store_unsubscribe', { name, window: windowLabel })
       }
     })
-  } catch {
-    // onCleanup은 컴포넌트 바깥에서 호출 시 무시
   }
 
   // Proxy로 getter/setter 제공
@@ -63,7 +60,7 @@ export function createSyncStore<T extends Record<string, any>>(
               ;(s as any)[field] = value
             }),
           )
-          invoke('store_set', { name, key: field, value })
+          safeInvokeVoid('store_set', { name, key: field, value })
         }
       }
       return (target as any)[prop]

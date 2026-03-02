@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api/core'
 import { createSignal, onMount } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { Device } from '../types'
+import { safeInvoke } from '../tauri'
 
 export interface DevicesHandle {
   devices: Accessor<Device[]>
@@ -11,7 +11,7 @@ export interface DevicesHandle {
 export function useDevices(): DevicesHandle {
   const [devices, setDevices] = createSignal<Device[]>([])
   const refresh = async () => {
-    const list = await invoke<Device[]>('frida_list_devices')
+    const list = (await safeInvoke<Device[]>('frida_list_devices')) ?? []
     setDevices(list)
   }
   onMount(refresh)

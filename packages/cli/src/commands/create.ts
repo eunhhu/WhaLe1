@@ -26,11 +26,12 @@ function scaffoldPackageJson(name: string): string {
       dependencies: {
         '@whale/sdk': '^0.1.0',
         '@whale/ui': '^0.1.0',
-        'solid-js': '^1.9.0',
+        'solid-js': '^1.9.11',
       },
       devDependencies: {
+        '@types/frida-gum': '^19.0.2',
         '@whale/cli': '^0.1.0',
-        typescript: '^5.7.0',
+        typescript: '^5.9.3',
       },
     },
     null,
@@ -50,6 +51,7 @@ function scaffoldTsConfig(): string {
         skipLibCheck: true,
         jsx: 'preserve',
         jsxImportSource: 'solid-js',
+        types: ['frida-gum'],
         outDir: 'dist',
         rootDir: 'src',
         declaration: true,

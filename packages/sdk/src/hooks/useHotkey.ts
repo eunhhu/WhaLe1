@@ -1,7 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { createSignal, onCleanup } from 'solid-js'
+import { createSignal, getOwner, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
+import { safeInvokeVoid, safeListen } from '../tauri'
 
 let hotkeyCounter = 0
 
@@ -14,15 +13,15 @@ export interface HotkeyHandle {
 export function useHotkey(keys: string[], callback: () => void): HotkeyHandle {
   const id = `hk_${++hotkeyCounter}`
   const [enabled, setEnabled] = createSignal(true)
-  invoke('input_register_hotkey', { id, keys })
-  const unlisten = listen<{ id: string }>(
+  safeInvokeVoid('input_register_hotkey', { id, keys })
+  const unlisten = safeListen<{ id: string }>(
     'input:hotkey-triggered',
     (event) => { if (event.payload.id === id && enabled()) callback() },
   )
   const unregister = () => {
-    invoke('input_unregister_hotkey', { id })
+    safeInvokeVoid('input_unregister_hotkey', { id })
     unlisten.then((fn) => fn())
   }
-  try { onCleanup(unregister) } catch {}
+  if (getOwner()) onCleanup(unregister)
   return { enabled, setEnabled, unregister }
 }

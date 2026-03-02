@@ -1,18 +1,10 @@
-// @ts-nocheck — Frida runtime types
-// This script runs inside the target process via Frida injection
+/// <reference types="frida-gum" />
+import '../types'
 
-// __whale_store__ is auto-injected by WhaLe framework
-declare const __whale_store__: {
-  speedHack: number
-  godMode: boolean
-  infiniteAmmo: boolean
-  noRecoil: boolean
-  fov: number
-  set(key: string, value: any): void
-}
+const gameTick = Module.getGlobalExportByName('game_tick')
 
-Interceptor.attach(Module.getExportByName(null, 'game_tick'), {
-  onEnter(args) {
+Interceptor.attach(gameTick, {
+  onEnter(_args: InvocationArguments) {
     if (__whale_store__.godMode) {
       // Example: patch health to max
     }

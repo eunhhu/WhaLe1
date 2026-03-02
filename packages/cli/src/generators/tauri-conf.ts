@@ -93,7 +93,8 @@ export function generateTauriConf(
           beforeBuildCommand: '',
         }
       : {
-          frontendDist: '.whale/dist',
+          // Tauri resolves frontendDist from src-tauri/, so point one level up.
+          frontendDist: '../.whale/dist',
           beforeDevCommand: '',
           beforeBuildCommand: '',
         }

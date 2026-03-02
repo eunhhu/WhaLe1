@@ -10,6 +10,7 @@ export interface ViteConfigOptions {
 
 export function generateViteConfig(options: ViteConfigOptions): Record<string, any> {
   const { config, projectRoot, htmlEntries, mode } = options
+  const devHost = process.env.WHALE_DEV_HOST ?? process.env.TAURI_DEV_HOST ?? '127.0.0.1'
 
   const input: Record<string, string> = {}
   for (const [label, htmlPath] of htmlEntries) {
@@ -21,8 +22,12 @@ export function generateViteConfig(options: ViteConfigOptions): Record<string, a
     mode,
     plugins: [],  // solid plugin added at runtime via import
     server: {
+      host: devHost,
       port: 1420,
       strictPort: true,
+      hmr: {
+        host: devHost,
+      },
     },
     build: {
       outDir: resolve(projectRoot, '.whale', 'dist'),

@@ -5,7 +5,8 @@
     "jsxImportSource": "solid-js",
     "rootDir": ".",
     "outDir": "dist",
-    "noEmit": true
+    "noEmit": true,
+    "types": ["frida-gum"]
   },
   "include": ["src", "whale.config.ts"]
 }

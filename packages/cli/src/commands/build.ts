@@ -8,6 +8,14 @@ import { generateViteConfig } from '../generators/vite-config.js'
 import { generateTauriConf } from '../generators/tauri-conf.js'
 import type { WhaleConfig } from '../config.js'
 
+const NPX_BIN = process.platform === 'win32' ? 'npx.cmd' : 'npx'
+const CARGO_BIN = process.platform === 'win32' ? 'cargo.exe' : 'cargo'
+
+function hasRustToolchain(): boolean {
+  const result = spawnSync(CARGO_BIN, ['--version'], { stdio: 'ignore' })
+  return result.status === 0 && !result.error
+}
+
 function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
   const srcTauri = join(projectRoot, 'src-tauri')
   if (existsSync(join(srcTauri, 'tauri.conf.json')) ||
@@ -17,7 +25,7 @@ function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
   }
 
   console.log(pc.cyan('[whale]'), 'Initializing Tauri project...')
-  const result = spawnSync('npx', [
+  const result = spawnSync(NPX_BIN, [
     'tauri', 'init',
     '--ci',
     '--app-name', config.app.name,
@@ -29,7 +37,6 @@ function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
   ], {
     cwd: projectRoot,
     stdio: 'inherit',
-    shell: true,
   })
 
   if (result.status !== 0) {
@@ -41,6 +48,7 @@ function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
 export async function build(configPath: string): Promise<void> {
   const projectRoot = resolve(process.cwd())
   const skipTauri = process.env.WHALE_SKIP_TAURI === '1'
+  const canRunTauri = !skipTauri && hasRustToolchain()
   console.log(pc.cyan('[whale]'), 'Building for production...')
 
   try {
@@ -51,7 +59,7 @@ export async function build(configPath: string): Promise<void> {
 
     // 2. Generate HTML entries in .whale/
     console.log(pc.dim('  Generating HTML entries...'))
-    const htmlEntries = generateHtmlEntries(config, projectRoot)
+    const htmlEntries = generateHtmlEntries(config, projectRoot, 'production')
     for (const [label] of htmlEntries) {
       console.log(pc.dim(`    ${label}.html`))
     }
@@ -78,8 +86,13 @@ export async function build(configPath: string): Promise<void> {
     const tauriConfPath = join(projectRoot, '.whale', 'tauri.conf.json')
     writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2))
 
-    if (skipTauri) {
-      console.log(pc.yellow('[whale]'), 'WHALE_SKIP_TAURI=1, skipping Tauri build')
+    if (!canRunTauri) {
+      if (skipTauri) {
+        console.log(pc.yellow('[whale]'), 'WHALE_SKIP_TAURI=1, skipping Tauri build')
+      } else {
+        console.log(pc.yellow('[whale]'), 'Rust toolchain not found (cargo missing), skipping Tauri build')
+        console.log(pc.dim('  Install Rust from https://rustup.rs to build native Tauri bundles'))
+      }
       console.log(pc.green('[whale]'), 'Build complete!')
       return
     }
@@ -90,12 +103,11 @@ export async function build(configPath: string): Promise<void> {
     // 6. Run tauri build
     console.log(pc.cyan('[whale]'), 'Building Tauri application...')
     const tauriProcess = spawn(
-      'npx',
+      NPX_BIN,
       ['tauri', 'build', '--config', tauriConfPath],
       {
         cwd: projectRoot,
         stdio: 'inherit',
-        shell: true,
       },
     )
 
