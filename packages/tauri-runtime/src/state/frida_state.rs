@@ -1,7 +1,8 @@
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc;
+use std::sync::OnceLock;
 
+use crossbeam_channel as channel;
 use tauri::{AppHandle, Emitter};
 
 // ---------------------------------------------------------------------------
@@ -22,6 +23,13 @@ pub struct ProcessInfoData {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SpawnAttachData {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+    pub pid: u32,
+}
+
 // ---------------------------------------------------------------------------
 // Request / Response types for the worker channel
 // ---------------------------------------------------------------------------
@@ -30,6 +38,7 @@ pub enum FridaResponse {
     Devices(Result<Vec<DeviceInfoData>, String>),
     Processes(Result<Vec<ProcessInfoData>, String>),
     Pid(Result<u32, String>),
+    SpawnAttach(Result<SpawnAttachData, String>),
     SessionId(Result<String, String>),
     ScriptId(Result<String, String>),
     Unit(Result<(), String>),
@@ -37,40 +46,61 @@ pub enum FridaResponse {
 
 pub enum FridaRequest {
     ListDevices {
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     EnumerateProcesses {
         device_id: String,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     Spawn {
         device_id: String,
         program: String,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
+    },
+    SpawnAttach {
+        device_id: String,
+        program: String,
+        reply: channel::Sender<FridaResponse>,
     },
     Resume {
         device_id: String,
         pid: u32,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     Attach {
         device_id: String,
         pid: u32,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     LoadScript {
         session_id: String,
         code: String,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     UnloadScript {
         script_id: String,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
     Detach {
         session_id: String,
-        reply: mpsc::Sender<FridaResponse>,
+        reply: channel::Sender<FridaResponse>,
     },
+}
+
+fn env_flag_enabled(name: &str) -> bool {
+    matches!(
+        std::env::var(name)
+            .ok()
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+fn devtools_frida_log_stream_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| env_flag_enabled("WHALE_DEVTOOLS_FRIDA_LOG"))
 }
 
 // ---------------------------------------------------------------------------
@@ -96,12 +126,12 @@ impl frida::ScriptHandler for WhaleScriptHandler {
                 crate::bridge::handle_frida_message(&self.app, &payload);
             }
             frida::Message::Log(ref log_msg) => {
-                log::info!(
+                log::debug!(
                     "[whale:frida] script log [{}]: {}",
                     format!("{:?}", log_msg.level),
                     log_msg.payload
                 );
-                if cfg!(debug_assertions) {
+                if cfg!(debug_assertions) && devtools_frida_log_stream_enabled() {
                     let _ = self.app.emit("devtools:log", &serde_json::json!({
                         "source": "frida",
                         "level": format!("{:?}", log_msg.level).to_lowercase(),
@@ -110,14 +140,14 @@ impl frida::ScriptHandler for WhaleScriptHandler {
                 }
             }
             frida::Message::Error(ref err_msg) => {
-                log::info!(
+                log::warn!(
                     "[whale:frida] script error: {} at {}:{}:{}",
                     err_msg.description,
                     err_msg.file_name,
                     err_msg.line_number,
                     err_msg.column_number
                 );
-                if cfg!(debug_assertions) {
+                if cfg!(debug_assertions) && devtools_frida_log_stream_enabled() {
                     let _ = self.app.emit("devtools:log", &serde_json::json!({
                         "source": "frida",
                         "level": "error",
@@ -157,13 +187,13 @@ fn device_type_str(dt: frida::DeviceType) -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub struct FridaManager {
-    tx: mpsc::Sender<FridaRequest>,
+    tx: channel::Sender<FridaRequest>,
 }
 
 impl FridaManager {
     /// Spawn the dedicated frida worker thread and return a handle.
     pub fn new(app: AppHandle) -> Self {
-        let (tx, rx) = mpsc::channel::<FridaRequest>();
+        let (tx, rx) = channel::unbounded::<FridaRequest>();
 
         std::thread::spawn(move || {
             log::info!("[whale:frida] worker thread started");
@@ -200,7 +230,7 @@ impl FridaManager {
                                 kind: device_type_str(d.get_type()).to_string(),
                             })
                             .collect();
-                        log::info!("[whale:frida] listed {} devices", list.len());
+                        log::debug!("[whale:frida] listed {} devices", list.len());
                         let _ = reply.send(FridaResponse::Devices(Ok(list)));
                     }
 
@@ -215,7 +245,7 @@ impl FridaManager {
                                         name: p.get_name().to_string(),
                                     })
                                     .collect();
-                                log::info!(
+                                log::debug!(
                                     "[whale:frida] enumerated {} processes on device {}",
                                     list.len(),
                                     device_id
@@ -241,7 +271,7 @@ impl FridaManager {
                                 let opts = frida::SpawnOptions::new();
                                 match device.spawn(&program, &opts) {
                                     Ok(pid) => {
-                                        log::info!(
+                                        log::debug!(
                                             "[whale:frida] spawned {} on {} -> pid {}",
                                             program,
                                             device_id,
@@ -266,6 +296,61 @@ impl FridaManager {
                         }
                     }
 
+                    FridaRequest::SpawnAttach {
+                        device_id,
+                        program,
+                        reply,
+                    } => {
+                        match device_manager.get_device_by_id(&device_id) {
+                            Ok(mut device) => {
+                                let opts = frida::SpawnOptions::new();
+                                match device.spawn(&program, &opts) {
+                                    Ok(pid) => match device.attach(pid) {
+                                        Ok(session) => {
+                                            session_counter += 1;
+                                            let sid =
+                                                format!("session_{}_{}", device_id, session_counter);
+                                            // SAFETY: session is derived from device which is derived
+                                            // from device_manager which lives for the thread lifetime.
+                                            let session_static: frida::Session<'static> =
+                                                unsafe { std::mem::transmute(session) };
+                                            sessions.insert(sid.clone(), Box::new(session_static));
+                                            log::debug!(
+                                                "[whale:frida] spawned+attached {} on {} -> {} ({})",
+                                                program,
+                                                device_id,
+                                                sid,
+                                                pid
+                                            );
+                                            let _ = reply.send(FridaResponse::SpawnAttach(Ok(
+                                                SpawnAttachData {
+                                                    session_id: sid,
+                                                    pid,
+                                                },
+                                            )));
+                                        }
+                                        Err(e) => {
+                                            let _ = reply.send(FridaResponse::SpawnAttach(Err(
+                                                format!("Attach after spawn failed: {}", e),
+                                            )));
+                                        }
+                                    },
+                                    Err(e) => {
+                                        let _ = reply.send(FridaResponse::SpawnAttach(Err(
+                                            format!("Spawn failed: {}", e),
+                                        )));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let _ = reply.send(FridaResponse::SpawnAttach(Err(format!(
+                                    "Device lookup failed ({}): {}",
+                                    device_id, e
+                                ))));
+                            }
+                        }
+                    }
+
                     FridaRequest::Resume {
                         device_id,
                         pid,
@@ -274,7 +359,7 @@ impl FridaManager {
                         match device_manager.get_device_by_id(&device_id) {
                             Ok(device) => match device.resume(pid) {
                                 Ok(()) => {
-                                    log::info!(
+                                    log::debug!(
                                         "[whale:frida] resumed pid {} on {}",
                                         pid,
                                         device_id
@@ -313,7 +398,7 @@ impl FridaManager {
                                     let session_static: frida::Session<'static> =
                                         unsafe { std::mem::transmute(session) };
                                     sessions.insert(sid.clone(), Box::new(session_static));
-                                    log::info!(
+                                    log::debug!(
                                         "[whale:frida] attached to pid {} -> {}",
                                         pid,
                                         sid
@@ -375,7 +460,7 @@ impl FridaManager {
                                         .entry(session_id.clone())
                                         .or_default()
                                         .insert(scid.clone());
-                                    log::info!(
+                                    log::debug!(
                                         "[whale:frida] loaded script {} in {}",
                                         scid,
                                         session_id
@@ -411,7 +496,7 @@ impl FridaManager {
                             }
                             match script.unload() {
                                 Ok(()) => {
-                                    log::info!(
+                                    log::debug!(
                                         "[whale:frida] unloaded script {}",
                                         script_id
                                     );
@@ -453,7 +538,7 @@ impl FridaManager {
                             match session.detach() {
                                 Ok(()) => {
                                     sessions.remove(&session_id);
-                                    log::info!(
+                                    log::debug!(
                                         "[whale:frida] detached session {}",
                                         session_id
                                     );
@@ -494,17 +579,6 @@ impl FridaManager {
         }
     }
 
-    /// Send a request to the worker thread and receive a reply.
-    pub fn send(&self, req_fn: impl FnOnce(mpsc::Sender<FridaResponse>) -> FridaRequest) -> FridaResponse {
-        let (reply_tx, reply_rx) = mpsc::channel();
-        let request = req_fn(reply_tx);
-        self.tx
-            .send(request)
-            .expect("[whale:frida] worker thread has terminated");
-        reply_rx
-            .recv()
-            .expect("[whale:frida] worker thread dropped reply channel")
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -512,13 +586,16 @@ impl FridaManager {
 // ---------------------------------------------------------------------------
 
 pub struct FridaSender {
-    tx: mpsc::Sender<FridaRequest>,
+    tx: channel::Sender<FridaRequest>,
 }
 
 impl FridaSender {
     /// Send a request to the worker thread and receive a reply.
-    pub fn send(&self, req_fn: impl FnOnce(mpsc::Sender<FridaResponse>) -> FridaRequest) -> FridaResponse {
-        let (reply_tx, reply_rx) = mpsc::channel();
+    pub fn send(
+        &self,
+        req_fn: impl FnOnce(channel::Sender<FridaResponse>) -> FridaRequest,
+    ) -> FridaResponse {
+        let (reply_tx, reply_rx) = channel::bounded(1);
         let request = req_fn(reply_tx);
         self.tx
             .send(request)

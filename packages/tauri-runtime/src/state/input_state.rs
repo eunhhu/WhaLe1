@@ -1,7 +1,7 @@
 use rdev::{listen, EventType, Key};
 use serde::Serialize;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use tauri::{AppHandle, Emitter};
 
@@ -17,47 +17,47 @@ struct HotkeyTransitions {
     released: Vec<String>,
 }
 
+#[derive(Default)]
+struct InputState {
+    hotkeys: Vec<HotkeyEntry>,
+    pressed_keys: HashSet<String>,
+    active_hotkeys: HashSet<String>,
+}
+
 pub struct InputManager {
-    hotkeys: Arc<Mutex<Vec<HotkeyEntry>>>,
-    pressed_keys: Arc<Mutex<HashSet<String>>>,
-    active_hotkeys: Arc<Mutex<HashSet<String>>>,
+    state: Arc<Mutex<InputState>>,
     listener_running: Mutex<bool>,
 }
 
 impl InputManager {
     pub fn new() -> Self {
         Self {
-            hotkeys: Arc::new(Mutex::new(Vec::new())),
-            pressed_keys: Arc::new(Mutex::new(HashSet::new())),
-            active_hotkeys: Arc::new(Mutex::new(HashSet::new())),
+            state: Arc::new(Mutex::new(InputState::default())),
             listener_running: Mutex::new(false),
         }
     }
 
     pub fn register_hotkey(&self, id: &str, keys: Vec<String>) {
-        let mut hotkeys = self.hotkeys.lock().unwrap();
         let normalized_keys = keys
             .into_iter()
             .map(|key| normalize_hotkey_key(&key))
             .collect();
-        hotkeys.push(HotkeyEntry {
+        let mut state = self.state.lock().unwrap();
+        state.hotkeys.push(HotkeyEntry {
             keys: normalized_keys,
             id: id.to_string(),
         });
     }
 
     pub fn unregister_hotkey(&self, id: &str) {
-        let mut hotkeys = self.hotkeys.lock().unwrap();
-        hotkeys.retain(|h| h.id != id);
-        drop(hotkeys);
-
-        let mut active_hotkeys = self.active_hotkeys.lock().unwrap();
-        active_hotkeys.remove(id);
+        let mut state = self.state.lock().unwrap();
+        state.hotkeys.retain(|h| h.id != id);
+        state.active_hotkeys.remove(id);
     }
 
     pub fn list_hotkeys(&self) -> Vec<HotkeyEntry> {
-        let hotkeys = self.hotkeys.lock().unwrap();
-        hotkeys.clone()
+        let state = self.state.lock().unwrap();
+        state.hotkeys.clone()
     }
 
     pub fn start_listener(&self, app_handle: AppHandle) {
@@ -67,9 +67,7 @@ impl InputManager {
         }
         *running = true;
 
-        let hotkeys = self.hotkeys.clone();
-        let pressed = self.pressed_keys.clone();
-        let active = self.active_hotkeys.clone();
+        let state = self.state.clone();
 
         thread::spawn(move || {
             listen(move |event| {
@@ -79,8 +77,8 @@ impl InputManager {
                     _ => return,
                 };
 
-                // Emit raw key event for devtools
-                if cfg!(debug_assertions) {
+                // Emit raw key events only when explicitly enabled to avoid IPC spam.
+                if cfg!(debug_assertions) && devtools_input_event_stream_enabled() {
                     let _ = app_handle.emit(
                         "input:key-event",
                         &serde_json::json!({
@@ -91,13 +89,16 @@ impl InputManager {
                 }
 
                 let transitions = {
-                    let hotkeys_guard = hotkeys.lock().unwrap();
-                    let mut pressed_guard = pressed.lock().unwrap();
-                    let mut active_guard = active.lock().unwrap();
+                    let mut guard = state.lock().unwrap();
+                    let InputState {
+                        hotkeys,
+                        pressed_keys,
+                        active_hotkeys,
+                    } = &mut *guard;
                     apply_hotkey_event(
-                        &hotkeys_guard,
-                        &mut pressed_guard,
-                        &mut active_guard,
+                        hotkeys,
+                        pressed_keys,
+                        active_hotkeys,
                         key_name,
                         is_press,
                     )
@@ -119,6 +120,22 @@ impl InputManager {
             .expect("Failed to start input listener");
         });
     }
+}
+
+fn env_flag_enabled(name: &str) -> bool {
+    matches!(
+        std::env::var(name)
+            .ok()
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+fn devtools_input_event_stream_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| env_flag_enabled("WHALE_DEVTOOLS_INPUT_STREAM"))
 }
 
 fn apply_hotkey_event(

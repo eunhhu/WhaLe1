@@ -69,6 +69,20 @@ describe('createSyncStore integration', () => {
     })
   })
 
+  it('should skip store_set invoke when setting the same value', async () => {
+    const { createSyncStore } = await import('../store')
+
+    const store = createSyncStore('player', { hp: 100 })
+    const baselineCalls = mockInvoke.mock.calls.length
+
+    store.setHp(100)
+
+    const storeSetCalls = mockInvoke.mock.calls.slice(baselineCalls)
+      .filter(([cmd]) => cmd === 'store_set')
+    expect(storeSetCalls.length).toBe(0)
+    expect(store.hp).toBe(100)
+  })
+
   it('should update local store when store:changed event is received', async () => {
     const { createSyncStore } = await import('../store')
 

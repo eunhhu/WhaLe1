@@ -4,13 +4,18 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
 
+let capturedDetachedHandler: ((event: { payload: { sessionId: string } }) => void) | undefined
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn((_event: string, _handler: (event: unknown) => void) => Promise.resolve(() => {})),
+  listen: vi.fn((_event: string, handler: (event: { payload: { sessionId: string } }) => void) => {
+    capturedDetachedHandler = handler
+    return Promise.resolve(() => {})
+  }),
 }))
 
 describe('useSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    capturedDetachedHandler = undefined
   })
 
   it('should call frida_load_script invoke with session id and code', async () => {
@@ -75,5 +80,14 @@ describe('useSession', () => {
     useSession({ id: 'sess-5', pid: 200 })
 
     expect(listen).toHaveBeenCalledWith('frida:session-detached', expect.any(Function))
+  })
+
+  it('should transition to detached on frida:session-detached event', async () => {
+    const { useSession } = await import('../hooks/useSession')
+    const session = useSession({ id: 'sess-6', pid: 201 })
+
+    expect(session.status()).toBe('attached')
+    capturedDetachedHandler?.({ payload: { sessionId: 'sess-6' } })
+    expect(session.status()).toBe('detached')
   })
 })

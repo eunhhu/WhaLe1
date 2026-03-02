@@ -1,6 +1,7 @@
 use crate::state::store_state::StoreManager;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// __whale 마커가 있는 메시지에서 store_name과 patch를 추출
@@ -17,11 +18,27 @@ pub fn parse_whale_message(message: &Value) -> Option<(String, HashMap<String, V
     Some((store_name, patch_map))
 }
 
+fn env_flag_enabled(name: &str) -> bool {
+    matches!(
+        std::env::var(name)
+            .ok()
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("1" | "true" | "yes" | "on")
+    )
+}
+
+fn devtools_frida_log_stream_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| env_flag_enabled("WHALE_DEVTOOLS_FRIDA_LOG"))
+}
+
 /// Frida 스크립트에서 send()된 메시지를 처리
 /// __whale 마커가 있으면 store를 자동 업데이트하고 윈도우에 emit
 pub fn handle_frida_message(app: &AppHandle, message: &Value) {
     // Emit to devtools in debug mode
-    if cfg!(debug_assertions) {
+    if cfg!(debug_assertions) && devtools_frida_log_stream_enabled() {
         let _ = app.emit("devtools:log", &serde_json::json!({
             "source": "frida",
             "level": "info",
@@ -31,13 +48,25 @@ pub fn handle_frida_message(app: &AppHandle, message: &Value) {
 
     if let Some((store_name, patch_map)) = parse_whale_message(message) {
         let store_manager = app.state::<StoreManager>();
-        store_manager.merge_patch(&store_name, patch_map.clone());
+        let Some(changed_keys) = store_manager.merge_patch_ref(&store_name, &patch_map) else {
+            return;
+        };
+        if changed_keys.is_empty() {
+            return;
+        }
 
         let payload = serde_json::json!({
-            "store": store_name,
+            "store": &store_name,
             "patch": patch_map,
         });
-        let _ = app.emit("store:changed", &payload);
+        let targets = store_manager.get_subscribed_windows(&store_name, &changed_keys);
+        if targets.is_empty() {
+            let _ = app.emit("store:changed", &payload);
+        } else {
+            for label in targets {
+                let _ = app.emit_to(&label, "store:changed", &payload);
+            }
+        }
     }
 }
 

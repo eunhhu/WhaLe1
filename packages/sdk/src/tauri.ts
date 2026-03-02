@@ -2,12 +2,17 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type Event, type EventName, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
+let runtimeCache: boolean | undefined
+
 export function isTauriRuntime(): boolean {
+  if (typeof runtimeCache === 'boolean') return runtimeCache
   if (typeof window === 'undefined') {
     // Keep tests and non-browser runtimes working with mocked Tauri APIs.
-    return true
+    runtimeCache = true
+    return runtimeCache
   }
-  return typeof (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined'
+  runtimeCache = typeof (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined'
+  return runtimeCache
 }
 
 export function getCurrentWindowLabel(): string | undefined {
@@ -35,7 +40,17 @@ export async function safeInvoke<T>(
 }
 
 export function safeInvokeVoid(command: string, payload?: Record<string, unknown>): void {
-  void safeInvoke(command, payload)
+  if (!isTauriRuntime()) return
+  try {
+    const result = typeof payload === 'undefined'
+      ? invoke(command)
+      : invoke(command, payload)
+    if (result && typeof (result as { catch?: unknown }).catch === 'function') {
+      void (result as Promise<unknown>).catch(() => {})
+    }
+  } catch {
+    // swallow errors for fire-and-forget calls
+  }
 }
 
 export async function safeListen<T>(

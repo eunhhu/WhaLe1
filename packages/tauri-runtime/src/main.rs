@@ -46,6 +46,7 @@ pub fn run() {
       commands::frida_cmd::frida_list_devices,
       commands::frida_cmd::frida_enumerate_processes,
       commands::frida_cmd::frida_spawn,
+      commands::frida_cmd::frida_spawn_attach,
       commands::frida_cmd::frida_resume,
       commands::frida_cmd::frida_attach,
       commands::frida_cmd::frida_load_script,
@@ -111,4 +112,8 @@ pub fn run() {
     })
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+fn main() {
+  run();
 }

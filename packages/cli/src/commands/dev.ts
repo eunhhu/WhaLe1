@@ -73,6 +73,19 @@ function syncTauriIcons(projectRoot: string, config: WhaleConfig): void {
   }
 }
 
+function validateFridaScripts(projectRoot: string, config: WhaleConfig): void {
+  const scripts = config.frida?.scripts ?? []
+  for (const [index, script] of scripts.entries()) {
+    const absPath = resolve(projectRoot, script.entry)
+    if (!existsSync(absPath)) {
+      throw new Error(`frida.scripts[${index}].entry not found: ${absPath}`)
+    }
+  }
+  if (scripts.length > 0) {
+    console.log(pc.dim(`  Frida scripts configured: ${scripts.length}`))
+  }
+}
+
 export async function dev(configPath: string): Promise<void> {
   const projectRoot = resolve(process.cwd())
   const skipTauri = process.env.WHALE_SKIP_TAURI === '1'
@@ -85,6 +98,7 @@ export async function dev(configPath: string): Promise<void> {
     const config = await loadConfig(resolve(projectRoot, configPath))
     const runtime = resolveRuntimeOptions(config, projectRoot)
     console.log(pc.green('  Config loaded:'), config.app.name)
+    validateFridaScripts(projectRoot, config)
 
     // 2. Generate HTML entries in configured outDir
     console.log(pc.dim('  Generating HTML entries...'))

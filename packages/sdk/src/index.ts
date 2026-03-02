@@ -17,7 +17,7 @@ export {
   HotkeyConflictError,
 } from './types'
 export { useHotkey } from './hooks/useHotkey'
-export type { HotkeyHandle } from './hooks/useHotkey'
+export type { HotkeyHandle, HotkeyCallbacks } from './hooks/useHotkey'
 export { useSimulate } from './hooks/useSimulate'
 export type { SimulateHandle } from './hooks/useSimulate'
 export { useWindow } from './hooks/useWindow'

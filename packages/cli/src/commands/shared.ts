@@ -57,6 +57,19 @@ function validateConfig(config: WhaleConfig): void {
     }
   }
 
+  if (config?.frida?.scripts) {
+    for (const [index, script] of config.frida.scripts.entries()) {
+      if (!script.entry) {
+        errors.push(`frida.scripts[${index}].entry is required`)
+        continue
+      }
+      const scriptPath = resolve(process.cwd(), script.entry)
+      if (!existsSync(scriptPath)) {
+        errors.push(`frida.scripts[${index}].entry not found: ${scriptPath}`)
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(errors.map((e) => `- ${e}`).join('\n'))
   }

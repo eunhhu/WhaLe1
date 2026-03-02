@@ -1,9 +1,10 @@
 use crate::preamble;
 use crate::state::frida_state::{
     DeviceInfoData, FridaManager, FridaRequest, FridaResponse, FridaSender, ProcessInfoData,
+    SpawnAttachData,
 };
 use crate::state::store_state::StoreManager;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 // ---------------------------------------------------------------------------
 // Helper: send a request to the frida worker and extract the typed response
@@ -37,6 +38,21 @@ fn request_spawn(
         reply,
     }) {
         FridaResponse::Pid(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+fn request_spawn_attach(
+    frida: &FridaSender,
+    device_id: String,
+    program: String,
+) -> Result<SpawnAttachData, String> {
+    match frida.send(|reply| FridaRequest::SpawnAttach {
+        device_id,
+        program,
+        reply,
+    }) {
+        FridaResponse::SpawnAttach(r) => r,
         _ => Err("Unexpected response type".to_string()),
     }
 }
@@ -92,6 +108,12 @@ fn request_detach(frida: &FridaSender, session_id: String) -> Result<(), String>
     }
 }
 
+fn resolve_spawn_target(program: Option<String>, bundle_id: Option<String>) -> Result<String, String> {
+    program
+        .or(bundle_id)
+        .ok_or_else(|| "Missing required spawn target: provide program (or bundleId)".to_string())
+}
+
 // ---------------------------------------------------------------------------
 // Tauri commands
 // ---------------------------------------------------------------------------
@@ -124,12 +146,31 @@ pub async fn frida_enumerate_processes(
 pub async fn frida_spawn(
     frida: State<'_, FridaManager>,
     device_id: String,
-    program: String,
+    program: Option<String>,
+    bundle_id: Option<String>,
 ) -> Result<u32, String> {
+    let target_program = resolve_spawn_target(program, bundle_id)?;
     let sender = frida.inner().clone_sender();
-    tauri::async_runtime::spawn_blocking(move || request_spawn(&sender, device_id, program))
+    tauri::async_runtime::spawn_blocking(move || request_spawn(&sender, device_id, target_program))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Spawn and immediately attach on a device in one IPC round-trip.
+#[tauri::command]
+pub async fn frida_spawn_attach(
+    frida: State<'_, FridaManager>,
+    device_id: String,
+    program: Option<String>,
+    bundle_id: Option<String>,
+) -> Result<SpawnAttachData, String> {
+    let target_program = resolve_spawn_target(program, bundle_id)?;
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || {
+        request_spawn_attach(&sender, device_id, target_program)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
 }
 
 /// Resume a spawned process
@@ -230,11 +271,21 @@ pub async fn frida_unload_script(
 /// Detach a session
 #[tauri::command]
 pub async fn frida_detach(
+    app: AppHandle,
     frida: State<'_, FridaManager>,
     session_id: String,
 ) -> Result<(), String> {
     let sender = frida.inner().clone_sender();
-    tauri::async_runtime::spawn_blocking(move || request_detach(&sender, session_id))
+    let detached_session_id = session_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || request_detach(&sender, session_id))
         .await
-        .map_err(|e| format!("Task join error: {}", e))?
+        .map_err(|e| format!("Task join error: {}", e))?;
+
+    if result.is_ok() {
+        let _ = app.emit(
+            "frida:session-detached",
+            &serde_json::json!({ "sessionId": detached_session_id }),
+        );
+    }
+    result
 }

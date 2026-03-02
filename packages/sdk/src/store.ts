@@ -76,6 +76,7 @@ export function createSyncStore<T extends StoreRecord>(
       const field = toSetterField(prop, defaults)
       if (field) {
         return (value: T[typeof field]) => {
+          if (Object.is(target[field], value)) return
           setStore(
             produce((s: T) => {
               s[field] = value

@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,7 +13,7 @@ struct StoreInner {
     persist_enabled: AtomicBool,
     dirty: AtomicBool,
     /// store_name → (window_label → subscribed_keys)
-    subscriptions: Mutex<HashMap<String, HashMap<String, Vec<String>>>>,
+    subscriptions: Mutex<HashMap<String, HashMap<String, HashSet<String>>>>,
 }
 
 pub struct StoreManager {
@@ -62,6 +62,9 @@ impl StoreManager {
     pub fn set(&self, name: &str, key: &str, value: Value) -> Option<HashMap<String, Value>> {
         let mut stores = self.inner.stores.lock().unwrap();
         if let Some(store) = stores.get_mut(name) {
+            if store.get(key).map_or(false, |existing| existing == &value) {
+                return Some(HashMap::new());
+            }
             store.insert(key.to_string(), value.clone());
             self.inner.dirty.store(true, Ordering::Relaxed);
             let mut patch = HashMap::new();
@@ -73,15 +76,26 @@ impl StoreManager {
     }
 
     pub fn merge_patch(&self, name: &str, patch: HashMap<String, Value>) -> bool {
+        self.merge_patch_ref(name, &patch).is_some()
+    }
+
+    pub fn merge_patch_ref(&self, name: &str, patch: &HashMap<String, Value>) -> Option<Vec<String>> {
         let mut stores = self.inner.stores.lock().unwrap();
         if let Some(store) = stores.get_mut(name) {
+            let mut changed_keys = Vec::new();
             for (k, v) in patch {
-                store.insert(k, v);
+                let should_update = store.get(k).map_or(true, |existing| existing != v);
+                if should_update {
+                    store.insert(k.clone(), v.clone());
+                    changed_keys.push(k.clone());
+                }
             }
-            self.inner.dirty.store(true, Ordering::Relaxed);
-            true
+            if !changed_keys.is_empty() {
+                self.inner.dirty.store(true, Ordering::Relaxed);
+            }
+            Some(changed_keys)
         } else {
-            false
+            None
         }
     }
 
@@ -144,7 +158,7 @@ impl StoreManager {
         let mut subs = self.inner.subscriptions.lock().unwrap();
         subs.entry(store.to_string())
             .or_default()
-            .insert(window.to_string(), keys);
+            .insert(window.to_string(), keys.into_iter().collect());
     }
 
     /// Remove a window's subscription from a store.
@@ -166,7 +180,7 @@ impl StoreManager {
         store_subs
             .iter()
             .filter(|(_label, keys)| {
-                changed_keys.iter().any(|ck| keys.contains(ck))
+                changed_keys.iter().any(|ck| keys.contains(ck.as_str()))
             })
             .map(|(label, _)| label.clone())
             .collect()
@@ -248,6 +262,17 @@ mod tests {
         assert_eq!(patch.get("a"), Some(&json!(42)));
     }
 
+    #[test]
+    fn test_set_same_value_returns_empty_patch() {
+        let mgr = StoreManager::new(None);
+        let mut defaults = HashMap::new();
+        defaults.insert("a".to_string(), json!(42));
+        mgr.register("s", defaults);
+
+        let patch = mgr.set("s", "a", json!(42)).unwrap();
+        assert!(patch.is_empty(), "setting same value should be no-op patch");
+    }
+
     // --- merge_patch → get → 병합 값 확인 ---
     #[test]
     fn test_merge_patch_updates_multiple_keys() {
@@ -274,6 +299,24 @@ mod tests {
         let mgr = StoreManager::new(None);
         let patch = HashMap::new();
         assert!(!mgr.merge_patch("nope", patch));
+    }
+
+    #[test]
+    fn test_merge_patch_ref_returns_only_changed_keys() {
+        let mgr = StoreManager::new(None);
+        let mut defaults = HashMap::new();
+        defaults.insert("a".to_string(), json!(1));
+        defaults.insert("b".to_string(), json!(2));
+        mgr.register("s", defaults);
+
+        let mut patch = HashMap::new();
+        patch.insert("a".to_string(), json!(1)); // unchanged
+        patch.insert("b".to_string(), json!(3)); // changed
+
+        let changed = mgr
+            .merge_patch_ref("s", &patch)
+            .expect("store should exist");
+        assert_eq!(changed, vec!["b".to_string()]);
     }
 
     // --- subscribe → get_subscribed_windows → 올바른 윈도우 반환 ---

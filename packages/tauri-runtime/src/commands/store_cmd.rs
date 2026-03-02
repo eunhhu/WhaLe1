@@ -29,6 +29,9 @@ pub fn store_set(
     value: Value,
 ) {
     if let Some(patch) = store_manager.set(&name, &key, value) {
+        if patch.is_empty() {
+            return;
+        }
         let payload = serde_json::json!({
             "store": name,
             "patch": patch,
