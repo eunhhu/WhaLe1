@@ -28,11 +28,21 @@ export interface BuildConfig {
   beforeBuildCommand?: string
 }
 
+export interface FridaScriptConfig {
+  entry: string
+  store?: string
+}
+
+export interface FridaConfig {
+  scripts?: FridaScriptConfig[]
+}
+
 export interface WhaleConfig {
   app: AppConfig
   windows: Record<string, WindowConfig & { entry: string }>
   store?: { persist?: boolean; persistPath?: string }
   build?: BuildConfig
+  frida?: FridaConfig
 }
 
 export function defineConfig(config: WhaleConfig): WhaleConfig {

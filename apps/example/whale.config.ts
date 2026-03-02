@@ -5,6 +5,7 @@ export default defineConfig({
     name: 'Example Trainer',
     version: '0.1.0',
     identifier: 'com.whale.example',
+    icon: '../../assets/icon.png',
   },
   windows: {
     main: {
@@ -28,6 +29,11 @@ export default defineConfig({
       height: 400,
       visible: false,
     },
+  },
+  frida: {
+    scripts: [
+      { entry: './src/script/hooks/main.ts', store: 'trainer' },
+    ],
   },
   store: {
     persist: true,

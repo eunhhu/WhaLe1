@@ -1,4 +1,5 @@
 export { createSyncStore } from './store'
+export { isTauriRuntime, safeInvoke, safeInvokeVoid, safeListen } from './tauri'
 export type {
   SyncStore,
   WindowConfig,
@@ -6,6 +7,7 @@ export type {
   Session,
   SpawnOptions,
   Script,
+  Process,
 } from './types'
 export {
   WhaleError,

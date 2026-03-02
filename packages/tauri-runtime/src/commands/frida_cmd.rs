@@ -1,64 +1,174 @@
-use crate::state::frida_state::FridaManager;
-use crate::state::store_state::StoreManager;
 use crate::preamble;
-use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use crate::state::frida_state::{
+    DeviceInfoData, FridaManager, FridaRequest, FridaResponse, FridaSender, ProcessInfoData,
+};
+use crate::state::store_state::StoreManager;
+use tauri::State;
 
-#[derive(Serialize, Clone)]
-pub struct DeviceInfo {
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub kind: String,
+// ---------------------------------------------------------------------------
+// Helper: send a request to the frida worker and extract the typed response
+// ---------------------------------------------------------------------------
+
+fn request_devices(frida: &FridaSender) -> Result<Vec<DeviceInfoData>, String> {
+    match frida.send(|reply| FridaRequest::ListDevices { reply }) {
+        FridaResponse::Devices(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
 }
 
-/// 디바이스 목록 반환 (Frida devkit 없이는 스텁)
-#[tauri::command]
-pub fn frida_list_devices() -> Result<Vec<DeviceInfo>, String> {
-    // frida-rust 미연동 상태에서는 로컬 디바이스만 반환
-    Ok(vec![DeviceInfo {
-        id: "local".to_string(),
-        name: "Local System".to_string(),
-        kind: "local".to_string(),
-    }])
+fn request_processes(
+    frida: &FridaSender,
+    device_id: String,
+) -> Result<Vec<ProcessInfoData>, String> {
+    match frida.send(|reply| FridaRequest::EnumerateProcesses { device_id, reply }) {
+        FridaResponse::Processes(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
 }
 
-/// 프로세스 spawn (스텁 — frida-rust 연동 시 실제 구현)
-#[tauri::command]
-pub fn frida_spawn(device_id: String, bundle_id: String) -> Result<u32, String> {
-    // 실제 구현 시 frida-rust의 Device::spawn() 호출
-    Err(format!(
-        "Frida spawn not yet connected: device={}, bundle={}",
-        device_id, bundle_id
-    ))
+fn request_spawn(
+    frida: &FridaSender,
+    device_id: String,
+    program: String,
+) -> Result<u32, String> {
+    match frida.send(|reply| FridaRequest::Spawn {
+        device_id,
+        program,
+        reply,
+    }) {
+        FridaResponse::Pid(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
 }
 
-/// 세션 attach (스텁)
+fn request_resume(frida: &FridaSender, device_id: String, pid: u32) -> Result<(), String> {
+    match frida.send(|reply| FridaRequest::Resume {
+        device_id,
+        pid,
+        reply,
+    }) {
+        FridaResponse::Unit(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+fn request_attach(frida: &FridaSender, device_id: String, pid: u32) -> Result<String, String> {
+    match frida.send(|reply| FridaRequest::Attach {
+        device_id,
+        pid,
+        reply,
+    }) {
+        FridaResponse::SessionId(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+fn request_load_script(
+    frida: &FridaSender,
+    session_id: String,
+    code: String,
+) -> Result<String, String> {
+    match frida.send(|reply| FridaRequest::LoadScript {
+        session_id,
+        code,
+        reply,
+    }) {
+        FridaResponse::ScriptId(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+fn request_unload_script(frida: &FridaSender, script_id: String) -> Result<(), String> {
+    match frida.send(|reply| FridaRequest::UnloadScript { script_id, reply }) {
+        FridaResponse::Unit(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+fn request_detach(frida: &FridaSender, session_id: String) -> Result<(), String> {
+    match frida.send(|reply| FridaRequest::Detach { session_id, reply }) {
+        FridaResponse::Unit(r) => r,
+        _ => Err("Unexpected response type".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tauri commands
+// ---------------------------------------------------------------------------
+
+/// List all frida devices
 #[tauri::command]
-pub fn frida_attach(
-    frida_manager: State<'_, FridaManager>,
+pub async fn frida_list_devices(
+    frida: State<'_, FridaManager>,
+) -> Result<Vec<DeviceInfoData>, String> {
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_devices(&sender))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Enumerate processes on a device
+#[tauri::command]
+pub async fn frida_enumerate_processes(
+    frida: State<'_, FridaManager>,
+    device_id: String,
+) -> Result<Vec<ProcessInfoData>, String> {
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_processes(&sender, device_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Spawn a process on a device
+#[tauri::command]
+pub async fn frida_spawn(
+    frida: State<'_, FridaManager>,
+    device_id: String,
+    program: String,
+) -> Result<u32, String> {
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_spawn(&sender, device_id, program))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Resume a spawned process
+#[tauri::command]
+pub async fn frida_resume(
+    frida: State<'_, FridaManager>,
+    device_id: String,
+    pid: u32,
+) -> Result<(), String> {
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_resume(&sender, device_id, pid))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Attach to a process on a device
+#[tauri::command]
+pub async fn frida_attach(
+    frida: State<'_, FridaManager>,
     device_id: String,
     pid: u32,
 ) -> Result<String, String> {
-    let session_id = format!("session_{}_{}", device_id, pid);
-    frida_manager.add_session(&session_id, &device_id, pid);
-    Ok(session_id)
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_attach(&sender, device_id, pid))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// 스크립트 로드 + __whale_store__ 프리앰블 자동 삽입
+/// Load a script into a session, with optional __whale_store__ preamble
 #[tauri::command]
-pub fn frida_load_script(
-    frida_manager: State<'_, FridaManager>,
+pub async fn frida_load_script(
+    frida: State<'_, FridaManager>,
     store_manager: State<'_, StoreManager>,
     session_id: String,
     code: String,
     store_name: Option<String>,
 ) -> Result<String, String> {
-    let script_id = format!("script_{}", session_id);
-    frida_manager.add_script(&script_id, &session_id);
-
-    // __whale_store__ 프리앰블 삽입
-    let _final_code = if let Some(ref name) = store_name {
+    // Build final code with preamble if store_name is provided
+    let final_code = if let Some(ref name) = store_name {
         let initial_state = store_manager
             .get(name)
             .map(|s| serde_json::to_string(&s).unwrap_or_default())
@@ -69,14 +179,16 @@ pub fn frida_load_script(
         code
     };
 
-    // 실제 구현 시 session.create_script(&final_code) 호출
-    Ok(script_id)
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_load_script(&sender, session_id, final_code))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// 파일에서 스크립트 로드
+/// Load a script from a file path
 #[tauri::command]
-pub fn frida_load_script_file(
-    frida_manager: State<'_, FridaManager>,
+pub async fn frida_load_script_file(
+    frida: State<'_, FridaManager>,
     store_manager: State<'_, StoreManager>,
     session_id: String,
     path: String,
@@ -84,20 +196,45 @@ pub fn frida_load_script_file(
 ) -> Result<String, String> {
     let code = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read script file {}: {}", path, e))?;
-    frida_load_script(frida_manager, store_manager, session_id, code, store_name)
+
+    // Build final code with preamble if store_name is provided
+    let final_code = if let Some(ref name) = store_name {
+        let initial_state = store_manager
+            .get(name)
+            .map(|s| serde_json::to_string(&s).unwrap_or_default())
+            .unwrap_or_else(|| "{}".to_string());
+        let preamble_code = preamble::generate(name, &initial_state);
+        format!("{}\n\n{}", preamble_code, code)
+    } else {
+        code
+    };
+
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_load_script(&sender, session_id, final_code))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }
 
-/// 세션 detach
+/// Unload a script
 #[tauri::command]
-pub fn frida_detach(
-    app: AppHandle,
-    frida_manager: State<'_, FridaManager>,
+pub async fn frida_unload_script(
+    frida: State<'_, FridaManager>,
+    script_id: String,
+) -> Result<(), String> {
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_unload_script(&sender, script_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+}
+
+/// Detach a session
+#[tauri::command]
+pub async fn frida_detach(
+    frida: State<'_, FridaManager>,
     session_id: String,
 ) -> Result<(), String> {
-    frida_manager.remove_session(&session_id);
-    let _ = app.emit(
-        "frida:session-detached",
-        serde_json::json!({ "sessionId": session_id }),
-    );
-    Ok(())
+    let sender = frida.inner().clone_sender();
+    tauri::async_runtime::spawn_blocking(move || request_detach(&sender, session_id))
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
 }

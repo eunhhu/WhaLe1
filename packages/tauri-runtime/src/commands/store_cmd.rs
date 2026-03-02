@@ -72,3 +72,19 @@ pub fn store_unsubscribe(
 ) {
     store_manager.unsubscribe(&name, &window);
 }
+
+#[tauri::command]
+pub fn store_get_persist_enabled(
+    store_manager: State<'_, StoreManager>,
+) -> bool {
+    store_manager.is_persist_enabled()
+}
+
+#[tauri::command]
+pub fn store_set_persist_enabled(
+    store_manager: State<'_, StoreManager>,
+    enabled: bool,
+) -> bool {
+    store_manager.set_persist_enabled(enabled);
+    true
+}

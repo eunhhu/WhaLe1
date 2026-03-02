@@ -46,6 +46,11 @@ export interface Script {
   id: string
 }
 
+export interface Process {
+  pid: number
+  name: string
+}
+
 // Error 타입
 export class WhaleError extends Error {
   constructor(

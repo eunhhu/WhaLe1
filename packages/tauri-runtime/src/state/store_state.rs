@@ -10,6 +10,7 @@ use std::time::Duration;
 struct StoreInner {
     stores: Mutex<HashMap<String, HashMap<String, Value>>>,
     persist_path: Option<PathBuf>,
+    persist_enabled: AtomicBool,
     dirty: AtomicBool,
     /// store_name → (window_label → subscribed_keys)
     subscriptions: Mutex<HashMap<String, HashMap<String, Vec<String>>>>,
@@ -36,6 +37,7 @@ impl StoreManager {
             inner: Arc::new(StoreInner {
                 stores: Mutex::new(stores),
                 persist_path,
+                persist_enabled: AtomicBool::new(true),
                 dirty: AtomicBool::new(false),
                 subscriptions: Mutex::new(HashMap::new()),
             }),
@@ -78,7 +80,21 @@ impl StoreManager {
         }
     }
 
+    pub fn is_persist_enabled(&self) -> bool {
+        self.inner.persist_enabled.load(Ordering::Relaxed)
+    }
+
+    pub fn set_persist_enabled(&self, enabled: bool) {
+        self.inner.persist_enabled.store(enabled, Ordering::Relaxed);
+        if enabled {
+            self.flush();
+        }
+    }
+
     pub fn persist(&self) {
+        if !self.is_persist_enabled() {
+            return;
+        }
         if let Some(ref path) = self.inner.persist_path {
             let stores = self.inner.stores.lock().unwrap();
             if let Ok(data) = serde_json::to_string_pretty(&*stores) {
@@ -93,6 +109,9 @@ impl StoreManager {
         let inner = Arc::clone(&self.inner);
         thread::spawn(move || loop {
             thread::sleep(Duration::from_millis(500));
+            if !inner.persist_enabled.load(Ordering::Relaxed) {
+                continue;
+            }
             if inner.dirty.swap(false, Ordering::Relaxed) {
                 if let Some(ref path) = inner.persist_path {
                     let stores = inner.stores.lock().unwrap();
@@ -107,6 +126,9 @@ impl StoreManager {
 
     /// Immediately persists if dirty.
     pub fn flush(&self) {
+        if !self.is_persist_enabled() {
+            return;
+        }
         if self.inner.dirty.swap(false, Ordering::Relaxed) {
             self.persist();
         }
@@ -335,6 +357,51 @@ mod tests {
         mgr.register("s", defaults);
         // Should not panic
         mgr.persist();
+    }
+
+    #[test]
+    fn test_persist_disabled_skips_flush_writes() {
+        let dir = std::env::temp_dir().join("whale_test_persist_disabled");
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("stores.json");
+
+        let mgr = StoreManager::new(Some(path.clone()));
+        let mut defaults = HashMap::new();
+        defaults.insert("v".to_string(), json!(1));
+        mgr.register("s", defaults);
+        mgr.set("s", "v", json!(2));
+
+        mgr.set_persist_enabled(false);
+        mgr.flush();
+        assert!(!path.exists(), "flush should not write while persist is disabled");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_reenable_persist_flushes_pending_dirty_state() {
+        let dir = std::env::temp_dir().join("whale_test_persist_reenable");
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("stores.json");
+
+        let mgr = StoreManager::new(Some(path.clone()));
+        let mut defaults = HashMap::new();
+        defaults.insert("v".to_string(), json!(1));
+        mgr.register("s", defaults);
+
+        mgr.set_persist_enabled(false);
+        mgr.set("s", "v", json!(3));
+        assert!(!path.exists(), "writes should stay suspended");
+
+        mgr.set_persist_enabled(true);
+        assert!(path.exists(), "re-enabling persist should flush dirty state");
+
+        let content = fs::read_to_string(&path).unwrap();
+        let parsed: HashMap<String, HashMap<String, Value>> =
+            serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed.get("s").unwrap().get("v"), Some(&json!(3)));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     // --- dirty flag + flush 테스트 ---

@@ -1,6 +1,3 @@
-/// <reference types="frida-gum" />
-import '../types'
-
 const gameTick = Module.getGlobalExportByName('game_tick')
 
 Interceptor.attach(gameTick, {
