@@ -13,7 +13,6 @@ use state::store_state::StoreManager;
 
 fn main() {
     tauri::Builder::default()
-        .manage(StoreManager::new(None))
         .manage(InputManager::new())
         .manage(FridaManager::new())
         .invoke_handler(tauri::generate_handler![
@@ -22,6 +21,8 @@ fn main() {
             commands::store_cmd::store_get,
             commands::store_cmd::store_set,
             commands::store_cmd::store_get_all,
+            commands::store_cmd::store_subscribe,
+            commands::store_cmd::store_unsubscribe,
             // Window
             commands::window_cmd::window_show,
             commands::window_cmd::window_hide,
@@ -50,6 +51,16 @@ fn main() {
             commands::frida_cmd::frida_detach,
         ])
         .setup(|app| {
+            // Store persistence: resolve app data dir for store file
+            let persist_path = app
+                .path()
+                .app_data_dir()
+                .ok()
+                .map(|dir| dir.join("whale_stores.json"));
+            let store_manager = StoreManager::new(persist_path);
+            store_manager.start_persist_loop();
+            app.manage(store_manager);
+
             // rdev input listener 시작
             let input_manager = app.state::<InputManager>();
             input_manager.start_listener(app.handle().clone());

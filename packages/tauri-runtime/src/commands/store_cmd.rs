@@ -33,7 +33,16 @@ pub fn store_set(
             "store": name,
             "patch": patch,
         });
-        let _ = app.emit("store:changed", &payload);
+        let changed_keys: Vec<String> = patch.keys().cloned().collect();
+        let targets = store_manager.get_subscribed_windows(&name, &changed_keys);
+        if targets.is_empty() {
+            // No subscriptions registered yet — broadcast to all (backwards compat)
+            let _ = app.emit("store:changed", &payload);
+        } else {
+            for label in targets {
+                let _ = app.emit_to(&label, "store:changed", &payload);
+            }
+        }
     }
 }
 
@@ -43,4 +52,23 @@ pub fn store_get_all(
     name: String,
 ) -> Option<HashMap<String, Value>> {
     store_manager.get(&name)
+}
+
+#[tauri::command]
+pub fn store_subscribe(
+    store_manager: State<'_, StoreManager>,
+    name: String,
+    window: String,
+    keys: Vec<String>,
+) {
+    store_manager.subscribe(&name, &window, keys);
+}
+
+#[tauri::command]
+pub fn store_unsubscribe(
+    store_manager: State<'_, StoreManager>,
+    name: String,
+    window: String,
+) {
+    store_manager.unsubscribe(&name, &window);
 }
