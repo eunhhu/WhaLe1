@@ -1,20 +1,5 @@
 import type { WhaleConfig } from '../config.js'
 
-export interface TauriConf {
-  productName: string
-  version: string
-  identifier: string
-  build: {
-    frontendDist: string
-    devUrl: string
-    beforeDevCommand: string
-    beforeBuildCommand: string
-  }
-  app: {
-    windows: TauriWindowConf[]
-  }
-}
-
 export interface TauriWindowConf {
   label: string
   url: string
@@ -30,22 +15,55 @@ export interface TauriWindowConf {
   y?: number
 }
 
+export interface TauriConf {
+  productName: string
+  version: string
+  identifier: string
+  build: {
+    frontendDist?: string
+    devUrl?: string
+    beforeDevCommand: string
+    beforeBuildCommand: string
+  }
+  app: {
+    withGlobalTauri: boolean
+    windows: TauriWindowConf[]
+  }
+  bundle: {
+    active: boolean
+    icon: string[]
+  }
+}
+
+export type TauriConfMode = 'development' | 'production'
+
 function mapWindowPosition(
   position?: { x: number; y: number } | string,
 ): { x?: number; y?: number } {
   if (!position) return {}
   if (typeof position === 'string') {
-    // Named positions like 'center' are handled by Tauri defaults
     return {}
   }
   return { x: position.x, y: position.y }
 }
 
-function toTauriWindow(label: string, config: WhaleConfig['windows'][string]): TauriWindowConf {
+function toTauriWindow(
+  label: string,
+  config: WhaleConfig['windows'][string],
+  mode: TauriConfMode,
+): TauriWindowConf {
   const pos = mapWindowPosition(config.position)
+
+  // In dev mode, each window points to the Vite dev server URL
+  // In production, each window points to the built HTML file
+  const url =
+    mode === 'development'
+      ? `${label}.html`
+      : `${label}.html`
+
   return {
     label,
-    url: config.entry,
+    url,
     ...(config.width !== undefined && { width: config.width }),
     ...(config.height !== undefined && { height: config.height }),
     ...(config.resizable !== undefined && { resizable: config.resizable }),
@@ -59,23 +77,45 @@ function toTauriWindow(label: string, config: WhaleConfig['windows'][string]): T
   }
 }
 
-export function generateTauriConf(config: WhaleConfig): TauriConf {
+export function generateTauriConf(
+  config: WhaleConfig,
+  mode: TauriConfMode = 'development',
+): TauriConf {
   const windows = Object.entries(config.windows).map(([label, wc]) =>
-    toTauriWindow(label, wc),
+    toTauriWindow(label, wc, mode),
   )
+
+  const buildConf: TauriConf['build'] =
+    mode === 'development'
+      ? {
+          devUrl: 'http://localhost:1420',
+          beforeDevCommand: '',
+          beforeBuildCommand: '',
+        }
+      : {
+          frontendDist: '.whale/dist',
+          beforeDevCommand: '',
+          beforeBuildCommand: '',
+        }
 
   return {
     productName: config.app.name,
     version: config.app.version,
     identifier: config.app.identifier,
-    build: {
-      frontendDist: config.build?.outDir ?? '../dist',
-      devUrl: 'http://localhost:1420',
-      beforeDevCommand: '',
-      beforeBuildCommand: '',
-    },
+    build: buildConf,
     app: {
+      withGlobalTauri: true,
       windows,
+    },
+    bundle: {
+      active: mode === 'production',
+      icon: [
+        'icons/32x32.png',
+        'icons/128x128.png',
+        'icons/128x128@2x.png',
+        'icons/icon.icns',
+        'icons/icon.ico',
+      ],
     },
   }
 }

@@ -11,7 +11,10 @@
     "test": "bun x vitest --run --dir packages"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.10.0",
     "vitest": "^3.0.0"
   }
 }

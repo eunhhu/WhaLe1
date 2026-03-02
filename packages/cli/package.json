@@ -11,12 +11,17 @@
   "bin": {
     "whale": "./dist/index.js"
   },
+  "exports": {
+    ".": "./dist/config.js",
+    "./config": "./dist/config.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
     "cac": "^6.7.0",
+    "esbuild": "^0.24.0",
     "picocolors": "^1.1.0"
   },
   "devDependencies": {

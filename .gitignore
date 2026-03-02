@@ -4,6 +4,7 @@ target/
 .tauri/
 .whale/
 *.tsbuildinfo
+.whale/
 .DS_Store
 .env
 .env.*
