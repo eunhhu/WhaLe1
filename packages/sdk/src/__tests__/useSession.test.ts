@@ -5,7 +5,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn((_event: string, _handler: Function) => Promise.resolve(() => {})),
+  listen: vi.fn((_event: string, _handler: (event: unknown) => void) => Promise.resolve(() => {})),
 }))
 
 describe('useSession', () => {

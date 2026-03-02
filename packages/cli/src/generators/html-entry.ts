@@ -1,5 +1,5 @@
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import type { WhaleConfig } from '../config.js'
 
 export type HtmlEntryMode = 'development' | 'production'
@@ -17,10 +17,10 @@ export function generateHtmlEntries(
   config: WhaleConfig,
   projectRoot: string,
   mode: HtmlEntryMode,
+  outDirAbs: string = join(projectRoot, '.whale'),
 ): Map<string, string> {
-  const whaleDir = join(projectRoot, '.whale')
-  if (!existsSync(whaleDir)) {
-    mkdirSync(whaleDir, { recursive: true })
+  if (!existsSync(outDirAbs)) {
+    mkdirSync(outDirAbs, { recursive: true })
   }
 
   const entries = new Map<string, string>()
@@ -28,12 +28,15 @@ export function generateHtmlEntries(
   for (const [label, windowConfig] of Object.entries(config.windows)) {
     const entryPath = windowConfig.entry
     const resolvedEntry = resolve(projectRoot, entryPath)
+    const relativeEntry = toPosixPath(relative(outDirAbs, resolvedEntry))
+    const productionModuleImportPath =
+      relativeEntry.startsWith('.') ? relativeEntry : `./${relativeEntry}`
     const moduleImportPath =
       mode === 'development'
         ? `/@fs/${toPosixPath(resolvedEntry)}`
-        : '../' + entryPath.replace(/^\.\//, '')
+        : productionModuleImportPath
     const bootstrapFileName = toBootstrapFileName(label)
-    const bootstrapPath = join(whaleDir, bootstrapFileName)
+    const bootstrapPath = join(outDirAbs, bootstrapFileName)
     const bootstrap = `import { createComponent } from 'solid-js'
 import { render } from 'solid-js/web'
 import * as WindowModule from ${JSON.stringify(moduleImportPath)}
@@ -69,6 +72,7 @@ if (import.meta.hot) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
   <title>${config.app.name} - ${label}</title>
 </head>
 <body>
@@ -77,7 +81,7 @@ if (import.meta.hot) {
 </body>
 </html>`
 
-    const htmlPath = join(whaleDir, `${label}.html`)
+    const htmlPath = join(outDirAbs, `${label}.html`)
     writeFileSync(bootstrapPath, bootstrap)
     writeFileSync(htmlPath, html)
     entries.set(label, htmlPath)

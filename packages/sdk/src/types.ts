@@ -5,7 +5,7 @@ export type StoreDefaults<T> = {
 
 export type SetterName<K extends string> = `set${Capitalize<K>}`
 
-export type SyncStore<T extends Record<string, any>> = {
+export type SyncStore<T extends Record<string, unknown>> = {
   readonly [K in keyof T]: T[K]
 } & {
   [K in keyof T & string as SetterName<K>]: (value: T[K]) => void

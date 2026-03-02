@@ -7,6 +7,7 @@ import { generateHtmlEntries } from '../generators/html-entry.js'
 import { generateViteConfig } from '../generators/vite-config.js'
 import { generateTauriConf } from '../generators/tauri-conf.js'
 import type { WhaleConfig } from '../config.js'
+import { resolveRuntimeOptions, type RuntimeOptions } from '../runtime-options.js'
 
 const NPX_BIN = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 const CARGO_BIN = process.platform === 'win32' ? 'cargo.exe' : 'cargo'
@@ -16,7 +17,11 @@ function hasRustToolchain(): boolean {
   return result.status === 0 && !result.error
 }
 
-function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
+function ensureTauriProject(
+  projectRoot: string,
+  config: WhaleConfig,
+  runtime: RuntimeOptions,
+): void {
   const srcTauri = join(projectRoot, 'src-tauri')
   if (existsSync(join(srcTauri, 'tauri.conf.json')) ||
       existsSync(join(srcTauri, 'tauri.conf.json5')) ||
@@ -30,10 +35,10 @@ function ensureTauriProject(projectRoot: string, config: WhaleConfig): void {
     '--ci',
     '--app-name', config.app.name,
     '--window-title', config.app.name,
-    '--dev-url', 'http://localhost:1420',
-    '--frontend-dist', '../.whale/dist',
-    '--before-dev-command', '',
-    '--before-build-command', '',
+    '--dev-url', runtime.devUrl,
+    '--frontend-dist', runtime.frontendDistFromSrcTauri,
+    '--before-dev-command', runtime.beforeDevCommand,
+    '--before-build-command', runtime.beforeBuildCommand,
   ], {
     cwd: projectRoot,
     stdio: 'inherit',
@@ -55,11 +60,12 @@ export async function build(configPath: string): Promise<void> {
     // 1. Load whale.config.ts
     console.log(pc.dim('  Loading config...'))
     const config = await loadConfig(resolve(projectRoot, configPath))
+    const runtime = resolveRuntimeOptions(config, projectRoot)
     console.log(pc.green('  Config loaded:'), config.app.name)
 
-    // 2. Generate HTML entries in .whale/
+    // 2. Generate HTML entries in configured outDir
     console.log(pc.dim('  Generating HTML entries...'))
-    const htmlEntries = generateHtmlEntries(config, projectRoot, 'production')
+    const htmlEntries = generateHtmlEntries(config, projectRoot, 'production', runtime.outDirAbs)
     for (const [label] of htmlEntries) {
       console.log(pc.dim(`    ${label}.html`))
     }
@@ -83,7 +89,7 @@ export async function build(configPath: string): Promise<void> {
     // 4. Generate tauri.conf.json for production
     console.log(pc.dim('  Generating tauri.conf.json...'))
     const tauriConf = generateTauriConf(config, 'production', projectRoot)
-    const tauriConfPath = join(projectRoot, '.whale', 'tauri.conf.json')
+    const tauriConfPath = runtime.tauriConfPathAbs
     writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2))
 
     if (!canRunTauri) {
@@ -98,7 +104,7 @@ export async function build(configPath: string): Promise<void> {
     }
 
     // 5. Ensure src-tauri exists (auto-init if missing)
-    ensureTauriProject(projectRoot, config)
+    ensureTauriProject(projectRoot, config, runtime)
 
     // 6. Run tauri build
     console.log(pc.cyan('[whale]'), 'Building Tauri application...')

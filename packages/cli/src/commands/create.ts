@@ -103,14 +103,15 @@ export default defineConfig({
   store: {
     persist: true,
   },
+  build: {
+    outDir: '.whale',
+  },
 })
 `
 }
 
 function scaffoldMainWindow(): string {
-  return `import { render } from 'solid-js/web'
-
-function Main() {
+  return `export default function Main() {
   return (
     <div>
       <h1>WhaLe App</h1>
@@ -118,38 +119,28 @@ function Main() {
     </div>
   )
 }
-
-render(() => <Main />, document.getElementById('root')!)
 `
 }
 
 function scaffoldOverlayWindow(): string {
-  return `import { render } from 'solid-js/web'
-
-function Overlay() {
+  return `export default function Overlay() {
   return (
     <div>
       <p>Overlay</p>
     </div>
   )
 }
-
-render(() => <Overlay />, document.getElementById('root')!)
 `
 }
 
 function scaffoldSettingsWindow(): string {
-  return `import { render } from 'solid-js/web'
-
-function Settings() {
+  return `export default function Settings() {
   return (
     <div>
       <h1>Settings</h1>
     </div>
   )
 }
-
-render(() => <Settings />, document.getElementById('root')!)
 `
 }
 
@@ -199,6 +190,14 @@ export interface ScriptConfig {
 `
 }
 
+function scaffoldGitIgnore(): string {
+  return `.whale/
+src-tauri/
+dist/
+node_modules/
+`
+}
+
 export async function create(name: string): Promise<void> {
   if (name.includes('/') || name.includes('\\')) {
     console.log(pc.red('[whale]'), `Invalid project name "${name}".`)
@@ -222,6 +221,7 @@ export async function create(name: string): Promise<void> {
 
   // Write files
   writeFile(join(root, 'package.json'), scaffoldPackageJson(name))
+  writeFile(join(root, '.gitignore'), scaffoldGitIgnore())
   writeFile(join(root, 'tsconfig.json'), scaffoldTsConfig())
   writeFile(join(root, 'whale.config.ts'), scaffoldWhaleConfig())
   writeFile(join(root, 'src', 'ui', 'windows', 'main.tsx'), scaffoldMainWindow())

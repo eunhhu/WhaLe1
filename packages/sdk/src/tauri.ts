@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listen, type Event, type EventName, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 export function isTauriRuntime(): boolean {
@@ -39,12 +39,12 @@ export function safeInvokeVoid(command: string, payload?: Record<string, unknown
 }
 
 export async function safeListen<T>(
-  event: string,
-  handler: (event: { payload: T }) => void,
-): Promise<() => void> {
+  event: EventName,
+  handler: (event: Event<T>) => void,
+): Promise<UnlistenFn> {
   if (!isTauriRuntime()) return () => {}
   try {
-    return await listen<T>(event, handler as any)
+    return await listen<T>(event, handler)
   } catch {
     return () => {}
   }

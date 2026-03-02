@@ -55,4 +55,16 @@ describe('generateHtmlEntries', () => {
     const bootstrap = readFileSync(join(root, '.whale', '__whale_entry_main.ts'), 'utf-8')
     expect(bootstrap).toContain('import * as WindowModule from "../src/ui/windows/main.tsx"')
   })
+
+  it('supports custom output directory without hardcoded .whale paths', () => {
+    const root = createProjectRoot()
+    const outDir = join(root, '.generated', 'whale')
+    generateHtmlEntries(config, root, 'production', outDir)
+
+    const html = readFileSync(join(outDir, 'main.html'), 'utf-8')
+    const bootstrap = readFileSync(join(outDir, '__whale_entry_main.ts'), 'utf-8')
+
+    expect(html).toContain('<script type="module" src="./__whale_entry_main.ts"></script>')
+    expect(bootstrap).toContain('import * as WindowModule from "../../src/ui/windows/main.tsx"')
+  })
 })

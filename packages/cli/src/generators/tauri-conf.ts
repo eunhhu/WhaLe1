@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import type { WhaleConfig } from '../config.js'
+import { resolveRuntimeOptions } from '../runtime-options.js'
 
 export interface TauriWindowConf {
   label: string
@@ -88,20 +89,12 @@ function mapWindowPosition(
 function toTauriWindow(
   label: string,
   config: WhaleConfig['windows'][string],
-  mode: TauriConfMode,
 ): TauriWindowConf {
   const pos = mapWindowPosition(config.position)
 
-  // In dev mode, each window points to the Vite dev server URL
-  // In production, each window points to the built HTML file
-  const url =
-    mode === 'development'
-      ? `${label}.html`
-      : `${label}.html`
-
   return {
     label,
-    url,
+    url: `${label}.html`,
     ...(config.width !== undefined && { width: config.width }),
     ...(config.height !== undefined && { height: config.height }),
     ...(config.resizable !== undefined && { resizable: config.resizable }),
@@ -120,23 +113,23 @@ export function generateTauriConf(
   mode: TauriConfMode = 'development',
   projectRoot: string = process.cwd(),
 ): TauriConf {
+  const runtime = resolveRuntimeOptions(config, projectRoot)
   const windows = Object.entries(config.windows).map(([label, wc]) =>
-    toTauriWindow(label, wc, mode),
+    toTauriWindow(label, wc),
   )
   const bundleIcon = resolveBundleIcon(config, projectRoot)
 
   const buildConf: TauriConf['build'] =
     mode === 'development'
       ? {
-          devUrl: 'http://localhost:1420',
-          beforeDevCommand: '',
-          beforeBuildCommand: '',
+          devUrl: runtime.devUrl,
+          beforeDevCommand: runtime.beforeDevCommand,
+          beforeBuildCommand: runtime.beforeBuildCommand,
         }
       : {
-          // Tauri resolves frontendDist from src-tauri/, so point one level up.
-          frontendDist: '../.whale/dist',
-          beforeDevCommand: '',
-          beforeBuildCommand: '',
+          frontendDist: runtime.frontendDistFromSrcTauri,
+          beforeDevCommand: runtime.beforeDevCommand,
+          beforeBuildCommand: runtime.beforeBuildCommand,
         }
 
   return {
@@ -150,7 +143,7 @@ export function generateTauriConf(
     },
     bundle: {
       active: mode === 'production',
-      icon: bundleIcon ? [bundleIcon] : DEFAULT_BUNDLE_ICONS,
+      icon: bundleIcon ? [bundleIcon, ...DEFAULT_BUNDLE_ICONS] : DEFAULT_BUNDLE_ICONS,
     },
   }
 }

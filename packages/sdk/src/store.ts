@@ -7,7 +7,23 @@ import {
   safeListen,
 } from './tauri'
 
-export function createSyncStore<T extends Record<string, any>>(
+type StoreRecord = Record<string, unknown>
+type StoreKey<T extends StoreRecord> = Extract<keyof T, string>
+
+function isStoreKey<T extends StoreRecord>(store: T, key: string): key is StoreKey<T> {
+  return Object.prototype.hasOwnProperty.call(store, key)
+}
+
+function toSetterField<T extends StoreRecord>(
+  setterName: string,
+  defaults: T,
+): StoreKey<T> | undefined {
+  if (!setterName.startsWith('set') || setterName.length <= 3) return undefined
+  const field = setterName[3].toLowerCase() + setterName.slice(4)
+  return isStoreKey(defaults, field) ? field : undefined
+}
+
+export function createSyncStore<T extends StoreRecord>(
   name: string,
   defaults: T,
 ): SyncStore<T> {
@@ -17,7 +33,7 @@ export function createSyncStore<T extends Record<string, any>>(
   safeInvokeVoid('store_register', { name, defaults })
 
   // 현재 윈도우의 구독 등록 — defaults의 모든 키를 구독
-  const keys = Object.keys(defaults)
+  const keys = Object.keys(defaults) as StoreKey<T>[]
   const windowLabel = getCurrentWindowLabel()
   if (windowLabel) {
     safeInvokeVoid('store_subscribe', { name, window: windowLabel, keys })
@@ -31,7 +47,8 @@ export function createSyncStore<T extends Record<string, any>>(
       setStore(
         produce((s: T) => {
           for (const [key, value] of Object.entries(event.payload.patch)) {
-            ;(s as any)[key] = value
+            if (!isStoreKey(defaults, key)) continue
+            s[key] = value as T[StoreKey<T>]
           }
         }),
       )
@@ -50,20 +67,29 @@ export function createSyncStore<T extends Record<string, any>>(
 
   // Proxy로 getter/setter 제공
   return new Proxy(store, {
-    get(target, prop: string) {
+    get(target: T, prop: string | symbol, receiver: unknown) {
+      if (typeof prop !== 'string') {
+        return Reflect.get(target as object, prop, receiver)
+      }
+
       // setXxx 패턴 감지
-      if (prop.startsWith('set') && prop.length > 3) {
-        const field = prop[3].toLowerCase() + prop.slice(4)
-        return (value: any) => {
+      const field = toSetterField(prop, defaults)
+      if (field) {
+        return (value: T[typeof field]) => {
           setStore(
             produce((s: T) => {
-              ;(s as any)[field] = value
+              s[field] = value
             }),
           )
           safeInvokeVoid('store_set', { name, key: field, value })
         }
       }
-      return (target as any)[prop]
+
+      if (isStoreKey(defaults, prop)) {
+        return target[prop]
+      }
+
+      return Reflect.get(target as object, prop, receiver)
     },
   }) as SyncStore<T>
 }

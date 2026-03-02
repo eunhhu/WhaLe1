@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { WhaleConfig } from '../config.js'
 import { generateTauriConf } from '../generators/tauri-conf.js'
+import { resolveRuntimeOptions } from '../runtime-options.js'
 
 export interface LoadedConfig {
   absPath: string
@@ -23,10 +24,11 @@ export async function loadAndValidateConfig(configPath: string): Promise<LoadedC
 }
 
 export function writeGeneratedTauriConf(config: WhaleConfig): string {
-  const generated = generateTauriConf(config)
-  const outDir = resolve(process.cwd(), '.whale')
-  const outPath = resolve(outDir, 'tauri.conf.generated.json')
-  mkdirSync(outDir, { recursive: true })
+  const projectRoot = resolve(process.cwd())
+  const runtime = resolveRuntimeOptions(config, projectRoot)
+  const generated = generateTauriConf(config, 'development', projectRoot)
+  const outPath = runtime.generatedTauriConfPathAbs
+  mkdirSync(runtime.outDirAbs, { recursive: true })
   writeFileSync(outPath, `${JSON.stringify(generated, null, 2)}\n`, 'utf-8')
   return outPath
 }

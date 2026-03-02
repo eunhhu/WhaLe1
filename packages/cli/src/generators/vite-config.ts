@@ -1,5 +1,7 @@
 import { resolve } from 'node:path'
 import type { WhaleConfig } from '../config.js'
+import type { InlineConfig } from 'vite'
+import { resolveRuntimeOptions } from '../runtime-options.js'
 
 export interface ViteConfigOptions {
   config: WhaleConfig
@@ -8,9 +10,9 @@ export interface ViteConfigOptions {
   mode: 'development' | 'production'
 }
 
-export function generateViteConfig(options: ViteConfigOptions): Record<string, any> {
+export function generateViteConfig(options: ViteConfigOptions): InlineConfig {
   const { config, projectRoot, htmlEntries, mode } = options
-  const devHost = process.env.WHALE_DEV_HOST ?? process.env.TAURI_DEV_HOST ?? '127.0.0.1'
+  const runtime = resolveRuntimeOptions(config, projectRoot)
 
   const input: Record<string, string> = {}
   for (const [label, htmlPath] of htmlEntries) {
@@ -18,19 +20,20 @@ export function generateViteConfig(options: ViteConfigOptions): Record<string, a
   }
 
   return {
-    root: resolve(projectRoot, '.whale'),
+    root: runtime.outDirAbs,
     mode,
     plugins: [],  // solid plugin added at runtime via import
     server: {
-      host: devHost,
-      port: 1420,
+      host: runtime.devHost,
+      port: runtime.devPort,
       strictPort: true,
       hmr: {
-        host: devHost,
+        host: runtime.devHost,
+        clientPort: runtime.devPort,
       },
     },
     build: {
-      outDir: resolve(projectRoot, '.whale', 'dist'),
+      outDir: runtime.distDirAbs,
       emptyOutDir: true,
       rollupOptions: {
         input,

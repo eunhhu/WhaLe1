@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn((_event: string, _handler: Function) => Promise.resolve(() => {})),
+  listen: vi.fn((_event: string, _handler: (event: unknown) => void) => Promise.resolve(() => {})),
 }))
 
 describe('useHotkey', () => {

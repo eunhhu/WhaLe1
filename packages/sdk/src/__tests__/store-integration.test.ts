@@ -2,15 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // --- Mocks ---
 const mockInvoke = vi.fn()
-const mockListenHandler = vi.fn()
-let capturedListeners: Record<string, Function> = {}
+let capturedListeners: Record<string, (event: unknown) => void> = {}
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: any[]) => mockInvoke(...args),
+  invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn((event: string, handler: Function) => {
+  listen: vi.fn((event: string, handler: (event: unknown) => void) => {
     capturedListeners[event] = handler
     return Promise.resolve(() => {
       delete capturedListeners[event]

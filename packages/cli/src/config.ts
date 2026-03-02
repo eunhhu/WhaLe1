@@ -19,11 +19,20 @@ export interface AppConfig {
   icon?: string
 }
 
+export interface BuildConfig {
+  outDir?: string
+  devHost?: string
+  devPort?: number
+  devUrl?: string
+  beforeDevCommand?: string
+  beforeBuildCommand?: string
+}
+
 export interface WhaleConfig {
   app: AppConfig
   windows: Record<string, WindowConfig & { entry: string }>
   store?: { persist?: boolean; persistPath?: string }
-  build?: { outDir?: string }
+  build?: BuildConfig
 }
 
 export function defineConfig(config: WhaleConfig): WhaleConfig {
