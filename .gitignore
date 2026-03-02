@@ -2,7 +2,10 @@ node_modules/
 dist/
 target/
 .tauri/
+.whale/
 *.tsbuildinfo
 .DS_Store
 .env
 .env.*
+.claude
+.omc

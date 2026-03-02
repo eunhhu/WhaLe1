@@ -1,14 +1,18 @@
 import pc from 'picocolors'
+import { loadAndValidateConfig, writeGeneratedTauriConf } from './shared.js'
 
 export async function dev(configPath: string): Promise<void> {
-  console.log(pc.cyan('[whale]'), 'Starting development server...')
-  console.log(pc.dim(`  Config: ${configPath}`))
-
-  // TODO: Load whale.config.ts
-  // TODO: Generate tauri.conf.json from config
-  // TODO: Start Vite dev server for frontend
-  // TODO: Start Tauri dev process
-  // TODO: Watch whale.config.ts for changes and regenerate tauri.conf.json
-
-  console.log(pc.yellow('[whale]'), 'Dev command not yet implemented')
+  console.log(pc.cyan('[whale]'), 'Preparing development runtime...')
+  try {
+    const { absPath, config } = await loadAndValidateConfig(configPath)
+    const generatedPath = writeGeneratedTauriConf(config)
+    console.log(pc.dim(`  Config: ${absPath}`))
+    console.log(pc.dim(`  Windows: ${Object.keys(config.windows).length}`))
+    console.log(pc.dim(`  Generated: ${generatedPath}`))
+    console.log(pc.green('[whale]'), 'Config validation complete.')
+  } catch (error) {
+    console.error(pc.red('[whale]'), 'Failed to prepare development runtime')
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
 }

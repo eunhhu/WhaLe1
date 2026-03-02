@@ -1,14 +1,31 @@
 import pc from 'picocolors'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { loadAndValidateConfig, writeGeneratedTauriConf } from './shared.js'
 
 export async function build(configPath: string): Promise<void> {
-  console.log(pc.cyan('[whale]'), 'Building for production...')
-  console.log(pc.dim(`  Config: ${configPath}`))
+  console.log(pc.cyan('[whale]'), 'Running production checks...')
+  try {
+    const { absPath, config } = await loadAndValidateConfig(configPath)
+    const generatedPath = writeGeneratedTauriConf(config)
+    console.log(pc.dim(`  Config: ${absPath}`))
+    console.log(pc.dim(`  Generated: ${generatedPath}`))
 
-  // TODO: Load whale.config.ts
-  // TODO: Generate tauri.conf.json from config
-  // TODO: Build frontend with Vite
-  // TODO: Build Tauri application
-  // TODO: Output build artifacts
+    const tsconfigPath = resolve(process.cwd(), 'tsconfig.json')
+    if (existsSync(tsconfigPath)) {
+      const result = spawnSync('bun', ['x', 'tsc', '-p', tsconfigPath, '--noEmit'], {
+        stdio: 'inherit',
+      })
+      if (result.status !== 0) {
+        process.exit(result.status ?? 1)
+      }
+    }
 
-  console.log(pc.yellow('[whale]'), 'Build command not yet implemented')
+    console.log(pc.green('[whale]'), 'Build checks completed.')
+  } catch (error) {
+    console.error(pc.red('[whale]'), 'Build failed')
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
 }

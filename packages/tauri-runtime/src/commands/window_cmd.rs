@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Debug, Deserialize)]
 pub struct WindowCreateConfig {
@@ -16,12 +16,21 @@ pub struct WindowCreateConfig {
     pub y: Option<f64>,
 }
 
+fn emit_visibility(app: &AppHandle, id: &str, visible: bool) {
+    let _ = app.emit(
+        "window:visibility-changed",
+        serde_json::json!({ "id": id, "visible": visible }),
+    );
+}
+
 #[tauri::command]
 pub fn window_show(app: AppHandle, id: String) -> Result<(), String> {
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
-    window.show().map_err(|e| e.to_string())
+    window.show().map_err(|e| e.to_string())?;
+    emit_visibility(&app, &id, true);
+    Ok(())
 }
 
 #[tauri::command]
@@ -29,7 +38,9 @@ pub fn window_hide(app: AppHandle, id: String) -> Result<(), String> {
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
-    window.hide().map_err(|e| e.to_string())
+    window.hide().map_err(|e| e.to_string())?;
+    emit_visibility(&app, &id, false);
+    Ok(())
 }
 
 #[tauri::command]
@@ -39,9 +50,13 @@ pub fn window_toggle(app: AppHandle, id: String) -> Result<(), String> {
         .ok_or_else(|| format!("Window '{}' not found", id))?;
     let visible = window.is_visible().map_err(|e| e.to_string())?;
     if visible {
-        window.hide().map_err(|e| e.to_string())
+        window.hide().map_err(|e| e.to_string())?;
+        emit_visibility(&app, &id, false);
+        Ok(())
     } else {
-        window.show().map_err(|e| e.to_string())
+        window.show().map_err(|e| e.to_string())?;
+        emit_visibility(&app, &id, true);
+        Ok(())
     }
 }
 
@@ -50,7 +65,9 @@ pub fn window_close(app: AppHandle, id: String) -> Result<(), String> {
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
-    window.close().map_err(|e| e.to_string())
+    window.close().map_err(|e| e.to_string())?;
+    emit_visibility(&app, &id, false);
+    Ok(())
 }
 
 #[tauri::command]
@@ -138,6 +155,7 @@ pub fn window_create(app: AppHandle, config: WindowCreateConfig) -> Result<(), S
     }
 
     builder.build().map_err(|e| e.to_string())?;
+    emit_visibility(&app, &config.id, config.visible.unwrap_or(true));
 
     Ok(())
 }

@@ -2,13 +2,14 @@ use crate::state::frida_state::FridaManager;
 use crate::state::store_state::StoreManager;
 use crate::preamble;
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize, Clone)]
 pub struct DeviceInfo {
     pub id: String,
     pub name: String,
-    pub device_type: String,
+    #[serde(rename = "type")]
+    pub kind: String,
 }
 
 /// 디바이스 목록 반환 (Frida devkit 없이는 스텁)
@@ -18,7 +19,7 @@ pub fn frida_list_devices() -> Result<Vec<DeviceInfo>, String> {
     Ok(vec![DeviceInfo {
         id: "local".to_string(),
         name: "Local System".to_string(),
-        device_type: "local".to_string(),
+        kind: "local".to_string(),
     }])
 }
 
@@ -89,9 +90,14 @@ pub fn frida_load_script_file(
 /// 세션 detach
 #[tauri::command]
 pub fn frida_detach(
+    app: AppHandle,
     frida_manager: State<'_, FridaManager>,
     session_id: String,
 ) -> Result<(), String> {
     frida_manager.remove_session(&session_id);
+    let _ = app.emit(
+        "frida:session-detached",
+        serde_json::json!({ "sessionId": session_id }),
+    );
     Ok(())
 }

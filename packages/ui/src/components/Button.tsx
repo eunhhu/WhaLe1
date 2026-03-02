@@ -1,7 +1,7 @@
 import { Component, JSX, splitProps, mergeProps } from 'solid-js'
 import { colors, radius, font, spacing } from '../theme/tokens'
 
-export type ButtonVariant = 'primary' | 'accent' | 'ghost'
+export type ButtonVariant = 'primary' | 'accent' | 'ghost' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,6 +24,11 @@ const variantStyles: Record<ButtonVariant, JSX.CSSProperties> = {
     background: 'transparent',
     color: colors.dim,
     border: `1px solid ${colors.dim}`,
+  },
+  danger: {
+    background: colors.error,
+    color: colors.text,
+    border: 'none',
   },
 }
 

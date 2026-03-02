@@ -73,7 +73,7 @@ export default defineConfig({
   },
   windows: {
     main: {
-      entry: '/src/ui/windows/main.tsx',
+      entry: './src/ui/windows/main.tsx',
       width: 800,
       height: 600,
       resizable: true,
@@ -81,7 +81,7 @@ export default defineConfig({
       visible: true,
     },
     overlay: {
-      entry: '/src/ui/windows/overlay.tsx',
+      entry: './src/ui/windows/overlay.tsx',
       width: 400,
       height: 300,
       transparent: true,
@@ -90,7 +90,7 @@ export default defineConfig({
       clickThrough: true,
     },
     settings: {
-      entry: '/src/ui/windows/settings.tsx',
+      entry: './src/ui/windows/settings.tsx',
       width: 600,
       height: 500,
       resizable: false,
@@ -152,14 +152,14 @@ render(() => <Settings />, document.getElementById('root')!)
 }
 
 function scaffoldStore(): string {
-  return `import { createStore } from '@whale/sdk'
+  return `import { createSyncStore } from '@whale/sdk'
 
 export interface TrainerState {
   running: boolean
   currentStep: number
 }
 
-export const trainerStore = createStore<TrainerState>('trainer', {
+export const trainerStore = createSyncStore('trainer', {
   running: false,
   currentStep: 0,
 })

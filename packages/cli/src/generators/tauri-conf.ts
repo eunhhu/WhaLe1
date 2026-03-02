@@ -1,4 +1,4 @@
-import type { WhaleConfig } from '../config'
+import type { WhaleConfig } from '../config.js'
 
 export interface TauriConf {
   productName: string

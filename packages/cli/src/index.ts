@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { cac } from 'cac'
-import { dev } from './commands/dev'
-import { build } from './commands/build'
-import { create } from './commands/create'
+import { dev } from './commands/dev.js'
+import { build } from './commands/build.js'
+import { create } from './commands/create.js'
 
 const cli = cac('whale')
 

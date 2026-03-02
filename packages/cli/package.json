@@ -2,6 +2,12 @@
   "name": "@whale/cli",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    }
+  },
   "bin": {
     "whale": "./dist/index.js"
   },

@@ -7,8 +7,8 @@
   ],
   "scripts": {
     "dev": "bun --filter @whale/cli dev",
-    "build": "bun --filter '*' build",
-    "test": "vitest"
+    "build": "bun --filter @whale/sdk build && bun --filter @whale/ui build && bun --filter @whale/cli build && bun --filter whale-example-trainer build",
+    "test": "bun x vitest --run --dir packages"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
