@@ -1,9 +1,12 @@
 {
   "name": "whale",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "pnpm --filter @whale/cli dev",
-    "build": "pnpm -r build",
+    "dev": "bun --filter @whale/cli dev",
+    "build": "bun --filter '*' build",
     "test": "vitest"
   },
   "devDependencies": {
