@@ -198,6 +198,12 @@ export interface ScriptConfig {
 }
 
 export async function create(name: string): Promise<void> {
+  if (name.includes('/') || name.includes('\\')) {
+    console.log(pc.red('[whale]'), `Invalid project name "${name}".`)
+    console.log(pc.dim('  Use a package name only (no path separators), e.g. "my-whale-app".'))
+    process.exit(1)
+  }
+
   const root = join(process.cwd(), name)
 
   if (existsSync(root)) {

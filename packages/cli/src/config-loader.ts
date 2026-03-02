@@ -1,5 +1,5 @@
 import { build } from 'esbuild'
-import { writeFileSync, unlinkSync } from 'node:fs'
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { WhaleConfig } from './config.js'
@@ -8,11 +8,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export async function loadConfig(configPath: string): Promise<WhaleConfig> {
   const absolutePath = resolve(configPath)
+  if (!existsSync(absolutePath)) {
+    throw new Error(`Config file not found: ${absolutePath}`)
+  }
   const tempFile = absolutePath + '.timestamp-' + Date.now() + '.mjs'
 
-  // Resolve @whale/cli to the actual config.ts source
-  const cliConfigPath = resolve(__dirname, '..', 'src', 'config.ts')
-  // Also try the dist version
   const cliConfigDistPath = resolve(__dirname, 'config.js')
 
   const result = await build({
@@ -35,6 +35,8 @@ export async function loadConfig(configPath: string): Promise<WhaleConfig> {
     const mod = await import(tempFile)
     return mod.default as WhaleConfig
   } finally {
-    unlinkSync(tempFile)
+    if (existsSync(tempFile)) {
+      unlinkSync(tempFile)
+    }
   }
 }

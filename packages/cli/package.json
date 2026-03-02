@@ -2,27 +2,30 @@
   "name": "@whale/cli",
   "version": "0.1.0",
   "type": "module",
-  "exports": {
-    "./config": {
-      "import": "./dist/config.js",
-      "types": "./dist/config.d.ts"
-    }
-  },
   "bin": {
     "whale": "./dist/index.js"
   },
   "exports": {
-    ".": "./dist/config.js",
-    "./config": "./dist/config.js"
+    ".": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config.js",
+      "types": "./dist/config.d.ts"
+    }
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "cac": "^6.7.0",
     "esbuild": "^0.24.0",
-    "picocolors": "^1.1.0"
+    "picocolors": "^1.1.0",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.10.0"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
