@@ -1,4 +1,4 @@
-import { defineConfig } from '@whale/cli/config'
+import { defineConfig } from '@whale/cli'
 
 export default defineConfig({
   app: {
