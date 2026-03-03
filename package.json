@@ -6,8 +6,8 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "bun --filter @whale/cli dev",
-    "build": "bun --filter @whale/sdk build && bun --filter @whale/ui build && bun --filter @whale/cli build && bun --filter whale-example-trainer build",
+    "dev": "bun --filter @whale1/cli dev",
+    "build": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && bun --filter whale-example-trainer build",
     "test": "bun x vitest --run --dir packages --exclude '**/dist/**'"
   },
   "devDependencies": {

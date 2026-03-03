@@ -66,7 +66,7 @@ WHALE_SKIP_TAURI=1 bun --filter whale-example-trainer dev
 ### 1) Sync Store
 
 ```ts
-import { createSyncStore } from '@whale/sdk'
+import { createSyncStore } from '@whale1/sdk'
 
 export const trainer = createSyncStore('trainer', {
   speedHack: 1.0,
@@ -82,7 +82,7 @@ trainer.setGodMode(true)
 ### 2) 글로벌 핫키 (press/release 구분)
 
 ```ts
-import { useHotkey } from '@whale/sdk'
+import { useHotkey } from '@whale1/sdk'
 
 useHotkey(['ctrl', 'f1'], {
   onPress: () => console.log('pressed'),
@@ -93,7 +93,7 @@ useHotkey(['ctrl', 'f1'], {
 ### 3) 윈도우 제어
 
 ```ts
-import { useWindow } from '@whale/sdk'
+import { useWindow } from '@whale1/sdk'
 
 const overlay = useWindow('overlay')
 overlay.toggle()
@@ -104,7 +104,7 @@ overlay.toggle()
 ### 4) Frida 세션
 
 ```ts
-import { useDevice, useSession } from '@whale/sdk'
+import { useDevice, useSession } from '@whale1/sdk'
 
 const device = useDevice({ type: 'local' })
 const session = await device.attach(1234)

@@ -1,7 +1,10 @@
 {
-  "name": "@whale/sdk",
+  "name": "@whale1/sdk",
   "version": "0.1.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -10,8 +13,8 @@
       "types": "./dist/index.d.ts"
     },
     "./devtools": {
-      "import": "./src/devtools/entry.tsx",
-      "types": "./src/devtools/entry.tsx"
+      "import": "./dist/devtools/entry.jsx",
+      "types": "./dist/devtools/entry.d.ts"
     }
   },
   "scripts": {

@@ -19,7 +19,7 @@ WhaLe 문서는 아래 순서로 읽는 것을 권장합니다.
   - UI ↔ Rust ↔ Frida 데이터 흐름
   - hotkey/store/window/persist 동작 방식
 - `api/sdk.md`
-  - `@whale/sdk` 공개 API 레퍼런스
+  - `@whale1/sdk` 공개 API 레퍼런스
 - `dev-and-troubleshooting.md`
   - dev/build 실행 흐름
   - HMR/DevTools/스토어 동기화/윈도우 재오픈 이슈 점검표

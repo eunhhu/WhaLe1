@@ -23,8 +23,8 @@ export async function loadConfig(configPath: string): Promise<WhaleConfig> {
     platform: 'node',
     external: ['solid-js', 'solid-js/*'],
     alias: {
-      '@whale/cli': cliConfigDistPath,
-      '@whale/cli/config': cliConfigDistPath,
+      '@whale1/cli': cliConfigDistPath,
+      '@whale1/cli/config': cliConfigDistPath,
     },
   })
 

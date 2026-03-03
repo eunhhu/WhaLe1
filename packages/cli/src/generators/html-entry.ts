@@ -108,7 +108,7 @@ if (import.meta.hot) {
     const devtoolsBootstrapPath = join(outDirAbs, devtoolsBootstrapFileName)
     const devtoolsBootstrap = `import { createComponent } from 'solid-js'
 import { render } from 'solid-js/web'
-import DevTools from '@whale/sdk/devtools'
+import DevTools from '@whale1/sdk/devtools'
 
 const root = document.getElementById('root')
 if (!root) {

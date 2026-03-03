@@ -1,4 +1,4 @@
-# @whale/sdk API
+# @whale1/sdk API
 
 이 문서는 현재 코드베이스(`packages/sdk/src`) 기준의 실제 공개 API를 정리합니다.
 
@@ -18,7 +18,7 @@ import {
   safeInvoke,
   safeInvokeVoid,
   safeListen,
-} from '@whale/sdk'
+} from '@whale1/sdk'
 ```
 
 ## Store
