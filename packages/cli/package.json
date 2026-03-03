@@ -1,9 +1,13 @@
 {
-  "name": "@whale/cli",
+  "name": "@whale1/cli",
   "version": "0.1.0",
   "type": "module",
+  "files": [
+    "dist",
+    "templates"
+  ],
   "bin": {
-    "whale": "./dist/index.js"
+    "whale": "dist/index.js"
   },
   "exports": {
     ".": {
@@ -16,8 +20,10 @@
     }
   },
   "scripts": {
+    "sync-template": "node ./scripts/sync-template.mjs",
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@tauri-apps/cli": "^2.10.0",
