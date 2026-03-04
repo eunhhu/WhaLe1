@@ -8,7 +8,15 @@
   "scripts": {
     "dev": "bun --filter @whale1/cli dev",
     "build": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && bun --filter whale-example-trainer build",
-    "test": "bun x vitest --run --dir packages --exclude '**/dist/**'"
+    "test": "bun x vitest --run --dir packages --exclude '**/dist/**'",
+    "publish:sdk": "npm publish --access public -w @whale1/sdk",
+    "publish:ui": "npm publish --access public -w @whale1/ui",
+    "publish:cli": "npm publish --access public -w @whale1/cli",
+    "publish:all": "npm run publish:sdk && npm run publish:ui && npm run publish:cli",
+    "version:patch:sdk": "npm version patch --no-git-tag-version -w @whale1/sdk",
+    "version:patch:ui": "npm version patch --no-git-tag-version -w @whale1/ui",
+    "version:patch:cli": "npm version patch --no-git-tag-version -w @whale1/cli",
+    "version:patch:all": "npm run version:patch:sdk && npm run version:patch:ui && npm run version:patch:cli"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",
