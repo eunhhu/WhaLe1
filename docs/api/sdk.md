@@ -192,7 +192,8 @@ interface SessionHandle {
 ```
 
 - `frida:session-detached` 이벤트 수신 시 `status='detached'`
-- `storeName` 전달 시 runtime에서 `__whale_store__` preamble이 함께 주입됨
+- `storeName` 전달 시 runtime에서 `__<name>__` preamble이 함께 주입됨
+- `storeName`에 식별자 불가 문자가 있으면 `_`로 정규화한 전역명 사용 (예: `my-store.v1` → `__my_store_v1__`)
 
 ### `useSession(device, options?)` — 통합 세션 관리
 
@@ -334,3 +335,63 @@ interface Process {
 - `HotkeyConflictError`
 
 현재 훅 구현은 대부분 `safeInvoke` 기반으로 실패를 `undefined` 처리하므로, 위 에러 클래스는 앱 레벨에서 커스텀 에러 모델로 활용하는 용도로 보는 것이 안전합니다.
+
+---
+
+## Frida 스크립트에서 Store 사용
+
+### store별 전역 변수
+
+`whale.config.ts`의 `frida.scripts[].store` 필드에 store 이름을 지정하면 런타임이 `__<name>__` 전역 변수를 스크립트에 자동 주입합니다.
+
+```ts
+// whale.config.ts
+frida: {
+  scripts: [{ entry: './src/script/main.ts', store: 'trainer' }]
+}
+// → Frida 스크립트 안에서 __trainer__ 사용 가능
+```
+
+### 타입 선언 (globals.d.ts)
+
+`src/script/globals.d.ts`에서 store 파일의 `typeof`를 `import type`으로 참조합니다.
+store 필드를 추가하면 타입이 자동 반영됩니다. 별도 `.d.ts` 이중 유지 불필요.
+
+```ts
+// src/script/globals.d.ts
+import type { trainer } from '../../store/trainer'
+import type { esp } from '../../store/esp'        // store 추가 시 한 줄 추가
+
+type StoreGlobal<T> = {
+  readonly [K in keyof T]: T[K]
+} & {
+  set<K extends keyof T>(key: K, value: T[K]): void
+}
+
+declare global {
+  const __trainer__: StoreGlobal<typeof trainer>
+  const __esp__: StoreGlobal<typeof esp>          // store 추가 시 한 줄 추가
+}
+
+export {}
+```
+
+### 스크립트에서 사용
+
+```ts
+// src/script/main.ts
+if (__trainer__.godMode) {
+  // god mode 로직
+}
+
+// 값 변경 — UI에 자동 동기화
+__trainer__.set('speedHack', 2.0)
+```
+
+### store 추가 체크리스트
+
+새 store를 추가할 때 필요한 작업:
+
+1. `store/mystore.ts` — `createSyncStore('mystore', { ... })` 생성
+2. `src/script/globals.d.ts` — `import type` + `declare global` 한 줄씩 추가
+3. `whale.config.ts` — `frida.scripts`에 `{ entry, store: 'mystore' }` 추가

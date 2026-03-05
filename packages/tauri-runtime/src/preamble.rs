@@ -1,8 +1,9 @@
-/// __whale_store__ 프리앰블 생성
+/// __<store_name>__ 프리앰블 생성
 /// Frida 스크립트에 자동 삽입되어 in-process 상태 접근을 제공
 pub fn generate(store_name: &str, initial_state_json: &str) -> String {
+    let var_name = store_global_var_name(store_name);
     format!(
-        r#"const __whale_store__ = (() => {{
+        r#"const {var_name} = (() => {{
   const _data = {initial_state};
   const _dirty = new Set();
   let _timer = null;
@@ -28,9 +29,25 @@ pub fn generate(store_name: &str, initial_state_json: &str) -> String {
     }},
   }});
 }})();"#,
+        var_name = var_name,
         initial_state = initial_state_json,
         store_name = store_name,
     )
+}
+
+fn store_global_var_name(store_name: &str) -> String {
+    let mut normalized = String::with_capacity(store_name.len());
+    for ch in store_name.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '$' {
+            normalized.push(ch);
+        } else {
+            normalized.push('_');
+        }
+    }
+    if normalized.is_empty() {
+        normalized.push_str("store");
+    }
+    format!("__{normalized}__")
 }
 
 #[cfg(test)]
@@ -42,7 +59,7 @@ mod tests {
         let result = generate("trainer", r#"{"speed":1.0}"#);
         assert!(result.contains("trainer"));
         assert!(result.contains(r#"{"speed":1.0}"#));
-        assert!(result.contains("__whale_store__"));
+        assert!(result.contains("__trainer__"));
         assert!(result.contains("__whale: true"));
     }
 
@@ -91,7 +108,7 @@ mod tests {
     fn test_preamble_is_iife() {
         let result = generate("s", "{}");
         // Must be an IIFE to avoid polluting global scope
-        assert!(result.starts_with("const __whale_store__ = (() => {"));
+        assert!(result.starts_with("const __s__ = (() => {"));
         assert!(result.ends_with("})();"));
     }
 
@@ -115,6 +132,19 @@ mod tests {
                 name
             );
         }
+    }
+
+    #[test]
+    fn test_preamble_normalizes_invalid_identifier_chars() {
+        let result = generate("my-store.v1", "{}");
+        assert!(result.starts_with("const __my_store_v1__ = (() => {"));
+        assert!(result.contains("store: 'my-store.v1'"));
+    }
+
+    #[test]
+    fn test_preamble_uses_fallback_name_for_empty_store() {
+        let result = generate("", "{}");
+        assert!(result.starts_with("const __store__ = (() => {"));
     }
 
     #[test]

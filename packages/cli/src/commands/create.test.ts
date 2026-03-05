@@ -50,7 +50,7 @@ describe('create command', () => {
     expect(existsSync(join(targetRoot, 'src', 'frida', 'session.ts'))).toBe(true)
     expect(existsSync(join(targetRoot, 'src', 'script', 'main.ts'))).toBe(true)
     expect(existsSync(join(targetRoot, 'src', 'script', 'tsconfig.json'))).toBe(true)
-    expect(existsSync(join(targetRoot, 'src', 'script', 'whale-store.d.ts'))).toBe(true)
+    expect(existsSync(join(targetRoot, 'src', 'script', 'globals.d.ts'))).toBe(true)
     expect(existsSync(join(targetRoot, 'assets', 'icon.png'))).toBe(true)
 
     const whaleConfig = readFileSync(join(targetRoot, 'whale.config.ts'), 'utf-8')

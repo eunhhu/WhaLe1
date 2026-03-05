@@ -9,14 +9,14 @@ Solid UI (main / overlay / settings / __devtools__)
   ↕  Tauri IPC (invoke/listen)
 Rust Runtime (StoreManager / InputManager / FridaManager / Window Commands)
   ↕  Frida message channel (send/recv)
-Target Process (injected script + __whale_store__)
+Target Process (injected script + __<store>__)
 ```
 
 핵심 포인트:
 
 - 백엔드는 별도 서버가 아니라 **Tauri 프로세스 내부 Rust 상태 객체**입니다.
 - UI 상태의 기준점은 `StoreManager`입니다.
-- Frida 스크립트는 `__whale_store__` preamble을 통해 같은 store를 읽고 쓰게 됩니다.
+- Frida 스크립트는 `__<store>__` preamble을 통해 같은 store를 읽고 쓰게 됩니다.
 
 ## 2) 모듈별 역할
 

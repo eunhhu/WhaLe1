@@ -1,6 +1,7 @@
 // Example Trainer — Frida Script
 // This script runs inside the target process via Frida.
-// __whale_store__ is automatically synced with the UI store.
+// __trainer__ is automatically synced with the UI store.
+// Types are defined in globals.d.ts — no manual .d.ts maintenance needed.
 
 // Safe export lookup with null guard
 const target = Module.findGlobalExportByName('game_tick')
@@ -11,30 +12,30 @@ if (target === null) {
   Interceptor.attach(target, {
     onEnter(_args: InvocationArguments) {
       // Read store values — these update in real-time from the UI
-      if (__whale_store__.godMode) {
+      if (__trainer__.godMode) {
         // TODO: Patch health to max value
         // Example: Memory.writeU32(healthAddr, 999999)
         send({ type: 'log', level: 'info', message: 'God mode active' })
       }
 
-      if (__whale_store__.infiniteAmmo) {
+      if (__trainer__.infiniteAmmo) {
         // TODO: Patch ammo count
         // Example: Memory.writeU32(ammoAddr, 9999)
       }
 
-      if (__whale_store__.noRecoil) {
+      if (__trainer__.noRecoil) {
         // TODO: Zero out recoil values
         // Example: Memory.writeFloat(recoilAddr, 0.0)
       }
 
-      if (__whale_store__.speedHack !== 1.0) {
+      if (__trainer__.speedHack !== 1.0) {
         // TODO: Modify game tick speed multiplier
-        // Example: Memory.writeFloat(speedAddr, __whale_store__.speedHack)
+        // Example: Memory.writeFloat(speedAddr, __trainer__.speedHack)
       }
 
-      if (__whale_store__.fov !== 90) {
+      if (__trainer__.fov !== 90) {
         // TODO: Patch field of view
-        // Example: Memory.writeFloat(fovAddr, __whale_store__.fov)
+        // Example: Memory.writeFloat(fovAddr, __trainer__.fov)
       }
     },
   })
@@ -43,7 +44,7 @@ if (target === null) {
 }
 
 // Write store values from script side (two-way sync)
-// __whale_store__.set('godMode', true)
+// __trainer__.set('godMode', true)
 
 // Receive messages from UI
 // recv('toggle-feature', (message) => {

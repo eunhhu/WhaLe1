@@ -403,7 +403,7 @@ pub async fn frida_attach(
     result
 }
 
-/// Load a script into a session, with optional __whale_store__ preamble
+/// Load a script into a session, with optional __<store_name>__ preamble
 #[tauri::command]
 pub async fn frida_load_script(
     app: AppHandle,
