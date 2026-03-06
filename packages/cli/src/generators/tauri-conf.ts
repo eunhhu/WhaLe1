@@ -39,6 +39,7 @@ export interface TauriConf {
   bundle: {
     active: boolean
     icon: string[]
+    resources?: Record<string, string>
   }
 }
 
@@ -78,6 +79,27 @@ export function resolveBundleIcon(config: WhaleConfig, projectRoot: string): str
   }
 
   return undefined
+}
+
+function resolveBundleResources(
+  config: WhaleConfig,
+  projectRoot: string,
+): Record<string, string> | undefined {
+  const scripts = config.frida?.scripts ?? []
+  if (scripts.length === 0) return undefined
+
+  const resources = Object.fromEntries(
+    scripts
+      .map((script) => {
+        const absolutePath = resolve(projectRoot, script.entry)
+        if (!existsSync(absolutePath)) return undefined
+        const relativePath = toPosixPath(relative(projectRoot, absolutePath))
+        return [absolutePath, relativePath]
+      })
+      .filter((entry): entry is [string, string] => Array.isArray(entry)),
+  )
+
+  return Object.keys(resources).length > 0 ? resources : undefined
 }
 
 function mapWindowPosition(
@@ -144,6 +166,7 @@ export function generateTauriConf(
   }
 
   const bundleIcon = resolveBundleIcon(config, projectRoot)
+  const bundleResources = resolveBundleResources(config, projectRoot)
 
   const buildConf: TauriConf['build'] =
     mode === 'development'
@@ -165,12 +188,13 @@ export function generateTauriConf(
     build: buildConf,
     app: {
       ...(hasTransparentWindow ? { macOSPrivateApi: true } : {}),
-      withGlobalTauri: true,
+      withGlobalTauri: false,
       windows,
     },
     bundle: {
       active: mode === 'production',
       icon: bundleIcon ? [bundleIcon, ...DEFAULT_BUNDLE_ICONS] : DEFAULT_BUNDLE_ICONS,
+      ...(bundleResources ? { resources: bundleResources } : {}),
     },
   }
 }

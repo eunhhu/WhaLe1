@@ -1,6 +1,7 @@
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { WhaleConfig } from '../config.js'
+import { readCliPackageMeta } from '../package-meta.js'
 
 export type HtmlEntryMode = 'development' | 'production'
 
@@ -24,6 +25,7 @@ export function generateHtmlEntries(
   }
 
   const entries = new Map<string, string>()
+  const pkgMeta = readCliPackageMeta()
 
   for (const [label, windowConfig] of Object.entries(config.windows)) {
     const entryPath = windowConfig.entry
@@ -108,7 +110,7 @@ if (import.meta.hot) {
     const devtoolsBootstrapPath = join(outDirAbs, devtoolsBootstrapFileName)
     const devtoolsBootstrap = `import { createComponent } from 'solid-js'
 import { render } from 'solid-js/web'
-import DevTools from '@whale1/sdk/devtools'
+import DevTools from ${JSON.stringify(`${pkgMeta.sdkPackageName}/devtools`)}
 
 const root = document.getElementById('root')
 if (!root) {

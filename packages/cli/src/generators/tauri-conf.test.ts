@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { generateTauriConf } from './tauri-conf.js'
 import type { WhaleConfig } from '../config.js'
@@ -40,5 +41,23 @@ describe('generateTauriConf', () => {
   it('enables macOS private API when transparent windows exist', () => {
     const conf = generateTauriConf(baseConfig, 'development', process.cwd())
     expect(conf.app.macOSPrivateApi).toBe(true)
+  })
+
+  it('disables global tauri injection and bundles frida scripts as resources', () => {
+    const conf = generateTauriConf(
+      {
+        ...baseConfig,
+        frida: {
+          scripts: [{ entry: './packages/sdk/src/index.ts', store: 'trainer' }],
+        },
+      },
+      'production',
+      process.cwd(),
+    )
+
+    expect(conf.app.withGlobalTauri).toBe(false)
+    expect(conf.bundle.resources).toEqual({
+      [resolve(process.cwd(), 'packages/sdk/src/index.ts')]: 'packages/sdk/src/index.ts',
+    })
   })
 })

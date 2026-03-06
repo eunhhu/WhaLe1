@@ -5,6 +5,7 @@ import { build } from './commands/build.js'
 import { create } from './commands/create.js'
 import { generateConfig } from './commands/generate-config.js'
 import { clean } from './commands/clean.js'
+import { readCliPackageMeta } from './package-meta.js'
 
 const cli = cac('whale')
 
@@ -19,5 +20,5 @@ cli.command('clean', 'Remove build artifacts and generated files')
   .action((options: { all?: boolean }) => clean(options))
 
 cli.help()
-cli.version('0.1.0')
+cli.version(readCliPackageMeta().version)
 cli.parse()

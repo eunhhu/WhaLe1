@@ -3,6 +3,7 @@ import { existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { WhaleConfig } from './config.js'
+import { buildCliImportAliases, readCliPackageMeta } from './package-meta.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -14,6 +15,7 @@ export async function loadConfig(configPath: string): Promise<WhaleConfig> {
   const tempFile = absolutePath + '.timestamp-' + Date.now() + '.mjs'
 
   const cliConfigDistPath = resolve(__dirname, 'config.js')
+  const pkgMeta = readCliPackageMeta()
 
   const result = await build({
     entryPoints: [absolutePath],
@@ -22,10 +24,7 @@ export async function loadConfig(configPath: string): Promise<WhaleConfig> {
     format: 'esm',
     platform: 'node',
     external: ['solid-js', 'solid-js/*'],
-    alias: {
-      '@whale1/cli': cliConfigDistPath,
-      '@whale1/cli/config': cliConfigDistPath,
-    },
+    alias: buildCliImportAliases(cliConfigDistPath, pkgMeta.cliPackageName),
   })
 
   const code = result.outputFiles[0].text

@@ -1,7 +1,7 @@
 import { cpSync, writeFileSync, readFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { basename, dirname, isAbsolute, resolve, join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { basename, isAbsolute, resolve, join, relative } from 'node:path'
 import pc from 'picocolors'
+import { DEFAULT_PACKAGE_VERSION, findCliPackageRoot, readCliPackageMeta, type CliPackageMeta } from '../package-meta.js'
 
 function ensureDir(path: string): void {
   if (!existsSync(path)) {
@@ -10,7 +10,6 @@ function ensureDir(path: string): void {
 }
 
 const TEMPLATE_DIR_ENV = 'WHALE_CREATE_TEMPLATE_DIR'
-const DEFAULT_PACKAGE_VERSION = '0.1.0'
 const DEFAULT_TYPECHECK_SCRIPT = 'tsc -p tsconfig.json --noEmit && tsc -p src/script/tsconfig.json --noEmit'
 const LEGACY_CLI_PACKAGE_NAMES = ['@whale/cli', '@whale1/cli']
 const LEGACY_SDK_PACKAGE_NAMES = ['@whale/sdk', '@whale1/sdk']
@@ -40,55 +39,11 @@ function writeFile(path: string, content: string): void {
   writeFileSync(path, content, 'utf-8')
 }
 
-interface CliPackageMeta {
-  cliPackageName: string
-  sdkPackageName: string
-  uiPackageName: string
-  version: string
-}
-
 type StringMap = Record<string, string>
 
 interface CreateTemplateOptions {
   templateRoot: string
   projectRoot: string
-}
-
-function deriveSiblingPackageName(cliPackageName: string, sibling: 'sdk' | 'ui'): string {
-  if (cliPackageName.includes('/')) {
-    const [scope] = cliPackageName.split('/')
-    return `${scope}/${sibling}`
-  }
-  if (cliPackageName.endsWith('-cli')) {
-    return `${cliPackageName.slice(0, -4)}-${sibling}`
-  }
-  return `@whale1/${sibling}`
-}
-
-function readCliPackageMeta(): CliPackageMeta {
-  try {
-    const cliRoot = findCliPackageRoot()
-    const packageJsonPath = join(cliRoot, 'package.json')
-    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
-      name?: string
-      version?: string
-    }
-    const cliPackageName = pkg.name ?? '@whale1/cli'
-    const version = pkg.version ?? DEFAULT_PACKAGE_VERSION
-    return {
-      cliPackageName,
-      sdkPackageName: deriveSiblingPackageName(cliPackageName, 'sdk'),
-      uiPackageName: deriveSiblingPackageName(cliPackageName, 'ui'),
-      version,
-    }
-  } catch {
-    return {
-      cliPackageName: '@whale1/cli',
-      sdkPackageName: '@whale1/sdk',
-      uiPackageName: '@whale1/ui',
-      version: DEFAULT_PACKAGE_VERSION,
-    }
-  }
 }
 
 function normalizePackageName(value: string): string {
@@ -130,21 +85,6 @@ function resolveInvocationCwd(): string {
 function resolveProjectRoot(name: string, invocationCwd: string): string {
   if (isAbsolute(name)) return resolve(name)
   return resolve(invocationCwd, name)
-}
-
-function findCliPackageRoot(): string {
-  let dir = dirname(fileURLToPath(import.meta.url))
-  while (true) {
-    const packageJsonPath = join(dir, 'package.json')
-    if (existsSync(packageJsonPath)) {
-      return dir
-    }
-    const parent = dirname(dir)
-    if (parent === dir) {
-      throw new Error('Unable to locate CLI package root.')
-    }
-    dir = parent
-  }
 }
 
 function isTemplateRoot(path: string): boolean {
