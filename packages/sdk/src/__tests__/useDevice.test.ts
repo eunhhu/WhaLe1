@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createRoot } from 'solid-js'
 
@@ -5,20 +6,34 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {})),
 }))
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: vi.fn(() => ({ label: 'main' })),
+}))
 
 describe('useDevice', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     vi.resetModules()
   })
 
-  it('should return device state and spawn/attach methods', async () => {
+  async function mountDevice() {
     const { useDevice } = await import('../hooks/useDevice')
-    const dev = useDevice({ type: 'usb' })
+    let dispose: (() => void) | undefined
+    const dev = createRoot((d) => {
+      dispose = d
+      return useDevice({ type: 'usb' })
+    })
+    await Promise.resolve()
+    return { dev, dispose }
+  }
+
+  it('should return device state and spawn/attach methods', async () => {
+    const { dev, dispose } = await mountDevice()
     expect(typeof dev.refresh).toBe('function')
     expect(typeof dev.spawn).toBe('function')
     expect(typeof dev.attach).toBe('function')
     expect(typeof dev.status).toBe('function')
+    dispose?.()
   })
 
   it('should call frida_spawn_attach with program payload key', async () => {
@@ -30,14 +45,8 @@ describe('useDevice', () => {
       ] as never)
       .mockResolvedValueOnce({ sessionId: 'sess-1', pid: 4242 } as never)
 
-    const { useDevice } = await import('../hooks/useDevice')
-    let dispose: (() => void) | undefined
-    const dev = createRoot((d) => {
-      dispose = d
-      return useDevice({ type: 'usb' })
-    })
-
-    await dev.refresh()
+    const { dev, dispose } = await mountDevice()
+    await vi.waitFor(() => expect(dev.device()?.id).toBe('usb-1'))
 
     const session = await dev.spawn('com.example.game')
     expect(session).toEqual({ id: 'sess-1', pid: 4242 })
@@ -60,14 +69,8 @@ describe('useDevice', () => {
       .mockResolvedValueOnce(4242 as never) // frida_spawn
       .mockResolvedValueOnce('sess-legacy' as never) // frida_attach
 
-    const { useDevice } = await import('../hooks/useDevice')
-    let dispose: (() => void) | undefined
-    const dev = createRoot((d) => {
-      dispose = d
-      return useDevice({ type: 'usb' })
-    })
-
-    await dev.refresh()
+    const { dev, dispose } = await mountDevice()
+    await vi.waitFor(() => expect(dev.device()?.id).toBe('usb-1'))
 
     const session = await dev.spawn('com.example.legacy')
     expect(session).toEqual({ id: 'sess-legacy', pid: 4242 })
@@ -100,14 +103,8 @@ describe('useDevice', () => {
       .mockResolvedValueOnce(1002 as never) // second spawn
       .mockResolvedValueOnce('sess-2' as never) // second attach
 
-    const { useDevice } = await import('../hooks/useDevice')
-    let dispose: (() => void) | undefined
-    const dev = createRoot((d) => {
-      dispose = d
-      return useDevice({ type: 'usb' })
-    })
-
-    await dev.refresh()
+    const { dev, dispose } = await mountDevice()
+    await vi.waitFor(() => expect(dev.device()?.id).toBe('usb-1'))
 
     const s1 = await dev.spawn('com.example.one')
     const s2 = await dev.spawn('com.example.two')

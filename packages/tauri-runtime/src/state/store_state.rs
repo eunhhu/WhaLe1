@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 struct StoreInner {
     stores: Mutex<HashMap<String, HashMap<String, Value>>>,
@@ -20,15 +20,82 @@ pub struct StoreManager {
     inner: Arc<StoreInner>,
 }
 
+fn corrupt_backup_path(path: &PathBuf) -> PathBuf {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("stores.json");
+    path.with_file_name(format!("{}.corrupt-{}", file_name, timestamp))
+}
+
+fn load_stores(path: &PathBuf) -> HashMap<String, HashMap<String, Value>> {
+    if !path.exists() {
+        return HashMap::new();
+    }
+
+    let data = match fs::read_to_string(path) {
+        Ok(data) => data,
+        Err(err) => {
+            log::warn!(
+                "[whale:store] failed to read persisted store {}: {}",
+                path.display(),
+                err
+            );
+            return HashMap::new();
+        }
+    };
+
+    match serde_json::from_str(&data) {
+        Ok(stores) => stores,
+        Err(err) => {
+            let backup_path = corrupt_backup_path(path);
+            let _ = fs::rename(path, &backup_path);
+            log::warn!(
+                "[whale:store] invalid persisted store {} moved to {}: {}",
+                path.display(),
+                backup_path.display(),
+                err
+            );
+            HashMap::new()
+        }
+    }
+}
+
+fn persist_stores_atomic(
+    path: &PathBuf,
+    stores: &HashMap<String, HashMap<String, Value>>,
+) -> std::io::Result<()> {
+    let data = serde_json::to_string_pretty(stores)
+        .map_err(|err| std::io::Error::other(err.to_string()))?;
+    let parent = path.parent().unwrap_or(path);
+    fs::create_dir_all(parent)?;
+
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("stores.json");
+    let tmp_path = parent.join(format!(".{}.tmp", file_name));
+
+    fs::write(&tmp_path, data)?;
+    if let Err(err) = fs::rename(&tmp_path, path) {
+        if path.exists() {
+            let _ = fs::remove_file(path);
+            fs::rename(&tmp_path, path)?;
+        } else {
+            return Err(err);
+        }
+    }
+    Ok(())
+}
+
 impl StoreManager {
     pub fn new(persist_path: Option<PathBuf>) -> Self {
         let stores = if let Some(ref path) = persist_path {
-            if path.exists() {
-                let data = fs::read_to_string(path).unwrap_or_default();
-                serde_json::from_str(&data).unwrap_or_default()
-            } else {
-                HashMap::new()
-            }
+            load_stores(path)
         } else {
             HashMap::new()
         };
@@ -120,9 +187,12 @@ impl StoreManager {
         }
         if let Some(ref path) = self.inner.persist_path {
             let stores = self.inner.stores.lock().unwrap();
-            if let Ok(data) = serde_json::to_string_pretty(&*stores) {
-                let _ = fs::create_dir_all(path.parent().unwrap_or(path));
-                let _ = fs::write(path, data);
+            if let Err(err) = persist_stores_atomic(path, &*stores) {
+                log::warn!(
+                    "[whale:store] failed to persist stores to {}: {}",
+                    path.display(),
+                    err
+                );
             }
         }
     }
@@ -138,9 +208,12 @@ impl StoreManager {
             if inner.dirty.swap(false, Ordering::Relaxed) {
                 if let Some(ref path) = inner.persist_path {
                     let stores = inner.stores.lock().unwrap();
-                    if let Ok(data) = serde_json::to_string_pretty(&*stores) {
-                        let _ = fs::create_dir_all(path.parent().unwrap_or(path));
-                        let _ = fs::write(path, data);
+                    if let Err(err) = persist_stores_atomic(path, &*stores) {
+                        log::warn!(
+                            "[whale:store] failed to persist stores to {}: {}",
+                            path.display(),
+                            err
+                        );
                     }
                 }
             }
@@ -595,6 +668,28 @@ mod tests {
         let mgr = StoreManager::new(Some(path));
         let got = mgr.get("persisted").expect("should load from file");
         assert_eq!(got.get("saved"), Some(&json!(true)));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_invalid_store_file_is_moved_aside() {
+        let dir = std::env::temp_dir().join("whale_test_invalid_store");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("stores.json");
+        fs::write(&path, "{ not-valid-json").unwrap();
+
+        let mgr = StoreManager::new(Some(path.clone()));
+        assert!(mgr.list_all().is_empty());
+        assert!(!path.exists(), "invalid store file should be moved aside");
+
+        let backup_count = fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().contains("stores.json.corrupt-"))
+            .count();
+        assert_eq!(backup_count, 1);
 
         let _ = fs::remove_dir_all(&dir);
     }

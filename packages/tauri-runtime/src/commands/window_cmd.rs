@@ -1,5 +1,6 @@
+use crate::commands::access::ensure_window_access;
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 #[derive(Debug, Deserialize)]
 pub struct WindowCreateConfig {
@@ -80,7 +81,8 @@ fn get_or_create_window(app: &AppHandle, id: &str) -> Result<tauri::WebviewWindo
 }
 
 #[tauri::command]
-pub fn window_show(app: AppHandle, id: String) -> Result<(), String> {
+pub fn window_show(window: WebviewWindow, app: AppHandle, id: String) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = get_or_create_window(&app, &id)?;
     window.show().map_err(|e| e.to_string())?;
     let _ = window.set_focus();
@@ -89,7 +91,8 @@ pub fn window_show(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_hide(app: AppHandle, id: String) -> Result<(), String> {
+pub fn window_hide(window: WebviewWindow, app: AppHandle, id: String) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -99,7 +102,8 @@ pub fn window_hide(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_toggle(app: AppHandle, id: String) -> Result<(), String> {
+pub fn window_toggle(window: WebviewWindow, app: AppHandle, id: String) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     match app.get_webview_window(&id) {
         Some(window) => {
             let visible = window.is_visible().map_err(|e| e.to_string())?;
@@ -124,7 +128,8 @@ pub fn window_toggle(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_close(app: AppHandle, id: String) -> Result<(), String> {
+pub fn window_close(window: WebviewWindow, app: AppHandle, id: String) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -134,7 +139,14 @@ pub fn window_close(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn window_set_position(app: AppHandle, id: String, x: f64, y: f64) -> Result<(), String> {
+pub fn window_set_position(
+    window: WebviewWindow,
+    app: AppHandle,
+    id: String,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -144,7 +156,14 @@ pub fn window_set_position(app: AppHandle, id: String, x: f64, y: f64) -> Result
 }
 
 #[tauri::command]
-pub fn window_set_size(app: AppHandle, id: String, width: f64, height: f64) -> Result<(), String> {
+pub fn window_set_size(
+    window: WebviewWindow,
+    app: AppHandle,
+    id: String,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -154,7 +173,13 @@ pub fn window_set_size(app: AppHandle, id: String, width: f64, height: f64) -> R
 }
 
 #[tauri::command]
-pub fn window_set_always_on_top(app: AppHandle, id: String, value: bool) -> Result<(), String> {
+pub fn window_set_always_on_top(
+    window: WebviewWindow,
+    app: AppHandle,
+    id: String,
+    value: bool,
+) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -162,15 +187,36 @@ pub fn window_set_always_on_top(app: AppHandle, id: String, value: bool) -> Resu
 }
 
 #[tauri::command]
-pub fn window_center(app: AppHandle, id: String) -> Result<(), String> {
+pub fn window_center(window: WebviewWindow, app: AppHandle, id: String) -> Result<(), String> {
+    ensure_window_access(&window, &id)?;
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
     window.center().map_err(|e| e.to_string())
 }
 
+fn configured_window_visibility(app: &AppHandle, id: &str) -> Option<bool> {
+    app.config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == id)
+        .map(|window| window.visible)
+}
+
 #[tauri::command]
-pub fn window_is_visible(app: AppHandle, id: String) -> Result<bool, String> {
+pub fn window_is_visible(
+    window: WebviewWindow,
+    app: AppHandle,
+    id: String,
+) -> Result<bool, String> {
+    ensure_window_access(&window, &id)?;
+    if let Some(window) = app.get_webview_window(&id) {
+        return window.is_visible().map_err(|e| e.to_string());
+    }
+    if let Some(visible) = configured_window_visibility(&app, &id) {
+        return Ok(visible);
+    }
     let window = app
         .get_webview_window(&id)
         .ok_or_else(|| format!("Window '{}' not found", id))?;
@@ -178,7 +224,12 @@ pub fn window_is_visible(app: AppHandle, id: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub fn window_create(app: AppHandle, config: WindowCreateConfig) -> Result<(), String> {
+pub fn window_create(
+    window: WebviewWindow,
+    app: AppHandle,
+    config: WindowCreateConfig,
+) -> Result<(), String> {
+    ensure_window_access(&window, &config.id)?;
     let url = WebviewUrl::App(config.url.into());
     let mut builder = WebviewWindowBuilder::new(&app, &config.id, url);
 

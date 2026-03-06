@@ -26,6 +26,7 @@ describe('createSyncStore integration', () => {
     vi.clearAllMocks()
     capturedListeners = {}
     vi.resetModules()
+    ;(globalThis as { window?: unknown }).window = { __TAURI_INTERNALS__: {} }
   })
 
   it('should call store_register invoke on creation', async () => {

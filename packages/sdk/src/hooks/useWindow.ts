@@ -1,6 +1,6 @@
 import { createSignal, getOwner, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import { safeInvokeVoid, safeListen } from '../tauri'
+import { safeInvoke, safeInvokeVoid, safeListen } from '../tauri'
 
 export interface WindowHandle {
   show(): void
@@ -16,6 +16,11 @@ export interface WindowHandle {
 
 export function useWindow(id: string): WindowHandle {
   const [visible, setVisible] = createSignal(true)
+  void safeInvoke<boolean>('window_is_visible', { id }).then((currentVisible) => {
+    if (typeof currentVisible === 'boolean') {
+      setVisible(currentVisible)
+    }
+  })
   const unlisten = safeListen<{ id: string; visible: boolean }>(
     'window:visibility-changed',
     (event) => {

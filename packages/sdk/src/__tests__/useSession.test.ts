@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: vi.fn(() => ({ label: 'main' })),
+}))
 
 let capturedDetachedHandler: ((event: { payload: { sessionId: string } }) => void) | undefined
 vi.mock('@tauri-apps/api/event', () => ({
@@ -16,6 +19,7 @@ describe('useSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     capturedDetachedHandler = undefined
+    ;(globalThis as { window?: unknown }).window = { __TAURI_INTERNALS__: {} }
   })
 
   it('should call frida_load_script invoke with session id and code', async () => {

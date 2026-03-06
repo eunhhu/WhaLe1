@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && whale dev",
     "build": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && whale build",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/script/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@whale1/sdk": "workspace:*",

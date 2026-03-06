@@ -13,12 +13,12 @@
       "types": "./dist/index.d.ts"
     },
     "./devtools": {
-      "import": "./dist/devtools/entry.jsx",
+      "import": "./dist/devtools/entry.js",
       "types": "./dist/devtools/entry.d.ts"
     }
   },
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc && node ../../scripts/transform-solid-dist.mjs dist && node ../../scripts/fix-esm-specifiers.mjs dist",
     "test": "vitest"
   },
   "dependencies": {

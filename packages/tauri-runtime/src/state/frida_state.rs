@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
+use std::time::Duration;
 
 use crossbeam_channel as channel;
 use tauri::{AppHandle, Emitter};
@@ -117,6 +118,41 @@ fn emit_devtools_frida_log(app: &AppHandle, level: &str, message: String) {
         "message": message,
     });
     let _ = app.emit("devtools:log", &payload);
+}
+
+fn unload_session_scripts(
+    session_id: &str,
+    scripts: &mut HashMap<String, Box<frida::Script<'static>>>,
+    script_sessions: &mut HashMap<String, String>,
+    session_scripts: &mut HashMap<String, HashSet<String>>,
+    script_stores: &mut HashMap<String, String>,
+    store_scripts: &mut HashMap<String, HashSet<String>>,
+) {
+    if let Some(script_ids) = session_scripts.remove(session_id) {
+        for script_id in script_ids {
+            script_sessions.remove(&script_id);
+            if let Some(store_name) = script_stores.remove(&script_id) {
+                let mut remove_entry = false;
+                if let Some(ids) = store_scripts.get_mut(&store_name) {
+                    ids.remove(&script_id);
+                    remove_entry = ids.is_empty();
+                }
+                if remove_entry {
+                    store_scripts.remove(&store_name);
+                }
+            }
+            if let Some(script) = scripts.remove(&script_id) {
+                if let Err(e) = script.unload() {
+                    log::warn!(
+                        "[whale:frida] failed to unload script {} for session {}: {}",
+                        script_id,
+                        session_id,
+                        e
+                    );
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +282,43 @@ impl FridaManager {
             let mut session_counter: u64 = 0;
             let mut script_counter: u64 = 0;
 
-            while let Ok(req) = rx.recv() {
+            loop {
+                let req = match rx.recv_timeout(Duration::from_millis(250)) {
+                    Ok(req) => req,
+                    Err(channel::RecvTimeoutError::Timeout) => {
+                        let detached_sessions: Vec<String> = sessions
+                            .iter()
+                            .filter_map(|(session_id, session)| {
+                                if session.is_detached() {
+                                    Some(session_id.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+
+                        for session_id in detached_sessions {
+                            unload_session_scripts(
+                                &session_id,
+                                &mut scripts,
+                                &mut script_sessions,
+                                &mut session_scripts,
+                                &mut script_stores,
+                                &mut store_scripts,
+                            );
+                            if sessions.remove(&session_id).is_some() {
+                                let _ = app.emit(
+                                    "frida:session-detached",
+                                    &serde_json::json!({ "sessionId": session_id }),
+                                );
+                            }
+                        }
+
+                        continue;
+                    }
+                    Err(channel::RecvTimeoutError::Disconnected) => break,
+                };
+
                 match req {
                     FridaRequest::ListDevices { reply } => {
                         let devices = device_manager.enumerate_all_devices();
@@ -633,31 +705,14 @@ impl FridaManager {
                     }
 
                     FridaRequest::Detach { session_id, reply } => {
-                        if let Some(script_ids) = session_scripts.remove(&session_id) {
-                            for script_id in script_ids {
-                                script_sessions.remove(&script_id);
-                                if let Some(store_name) = script_stores.remove(&script_id) {
-                                    let mut remove_entry = false;
-                                    if let Some(ids) = store_scripts.get_mut(&store_name) {
-                                        ids.remove(&script_id);
-                                        remove_entry = ids.is_empty();
-                                    }
-                                    if remove_entry {
-                                        store_scripts.remove(&store_name);
-                                    }
-                                }
-                                if let Some(script) = scripts.remove(&script_id) {
-                                    if let Err(e) = script.unload() {
-                                        log::warn!(
-                                            "[whale:frida] failed to unload script {} before detach {}: {}",
-                                            script_id,
-                                            session_id,
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                        }
+                        unload_session_scripts(
+                            &session_id,
+                            &mut scripts,
+                            &mut script_sessions,
+                            &mut session_scripts,
+                            &mut script_stores,
+                            &mut store_scripts,
+                        );
 
                         if let Some(session) = sessions.get(&session_id) {
                             match session.detach() {

@@ -1,4 +1,4 @@
-import { Component, JSX, splitProps, mergeProps } from 'solid-js'
+import { Component, JSX, splitProps, mergeProps, createEffect, createSignal } from 'solid-js'
 import { colors, radius, font, transition } from '../theme/tokens'
 
 export interface SliderProps {
@@ -14,9 +14,23 @@ export interface SliderProps {
 export const Slider: Component<SliderProps> = (props) => {
   const merged = mergeProps({ min: 0, max: 100, step: 1, value: 50, disabled: false }, props)
   const [local, rest] = splitProps(merged, ['min', 'max', 'step', 'value', 'onChange', 'disabled', 'style'])
+  const [internalValue, setInternalValue] = createSignal(Number(local.value))
+  const isControlled = () => props.value !== undefined
+
+  createEffect(() => {
+    if (isControlled()) {
+      setInternalValue(Number(local.value))
+    }
+  })
+
+  const currentValue = () => (isControlled() ? Number(local.value) : internalValue())
 
   const handleInput: JSX.EventHandler<HTMLInputElement, InputEvent> = (e) => {
-    local.onChange?.(Number(e.currentTarget.value))
+    const nextValue = Number(e.currentTarget.value)
+    if (!isControlled()) {
+      setInternalValue(nextValue)
+    }
+    local.onChange?.(nextValue)
   }
 
   const containerStyle: JSX.CSSProperties = {
@@ -55,12 +69,12 @@ export const Slider: Component<SliderProps> = (props) => {
         min={local.min}
         max={local.max}
         step={local.step}
-        value={local.value}
+        value={currentValue()}
         onInput={handleInput}
         disabled={local.disabled}
         style={inputStyle}
       />
-      <span style={labelStyle}>{local.value}</span>
+      <span style={labelStyle}>{currentValue()}</span>
     </div>
   )
 }

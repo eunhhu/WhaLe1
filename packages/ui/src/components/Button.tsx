@@ -9,6 +9,10 @@ export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement>
   size?: ButtonSize
 }
 
+type NativeButtonType = 'button' | 'submit' | 'reset' | 'menu'
+
+const defaultButtonType: NativeButtonType = 'button'
+
 const variantStyles: Record<ButtonVariant, JSX.CSSProperties> = {
   primary: {
     background: colors.primary,
@@ -49,7 +53,7 @@ const sizeStyles: Record<ButtonSize, JSX.CSSProperties> = {
 
 export const Button: Component<ButtonProps> = (props) => {
   const merged = mergeProps({ variant: 'primary' as ButtonVariant, size: 'md' as ButtonSize }, props)
-  const [local, rest] = splitProps(merged, ['variant', 'size', 'style', 'children', 'disabled'])
+  const [local, rest] = splitProps(merged, ['variant', 'size', 'style', 'children', 'disabled', 'type'])
 
   const baseStyle: JSX.CSSProperties = {
     'font-family': font.family,
@@ -73,6 +77,7 @@ export const Button: Component<ButtonProps> = (props) => {
         ...(typeof local.style === 'object' ? local.style : {}),
       }}
       disabled={local.disabled}
+      type={(local.type ?? defaultButtonType) as NativeButtonType}
       {...rest}
     >
       {local.children}

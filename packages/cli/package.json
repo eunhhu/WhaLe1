@@ -21,7 +21,7 @@
   },
   "scripts": {
     "sync-template": "node ./scripts/sync-template.mjs",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/index.js', 0o755)\"",
     "dev": "tsc --watch",
     "prepack": "npm run build"
   },

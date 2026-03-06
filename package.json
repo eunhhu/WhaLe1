@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "dev": "bun --filter @whale1/cli dev",
-    "build": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && bun --filter whale-example-trainer build",
+    "build": "bun run --cwd packages/sdk build && bun run --cwd packages/ui build && bun run --cwd packages/cli build && bun run --cwd apps/example build",
     "test": "bun x vitest --run --dir packages --exclude '**/dist/**'",
     "publish:sdk": "npm publish --access public -w @whale1/sdk",
     "publish:ui": "npm publish --access public -w @whale1/ui",
@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",
+    "jsdom": "^26.1.0",
+    "solid-js": "^1.9.11",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-solid": "^2.11.10",

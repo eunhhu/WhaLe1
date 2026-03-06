@@ -9,9 +9,7 @@ export function isTauriRuntime(): boolean {
   // early bootstrap before Tauri globals are injected.
   if (runtimeCache === true) return true
   if (typeof window === 'undefined') {
-    // Keep tests and non-browser runtimes working with mocked Tauri APIs.
-    runtimeCache = true
-    return true
+    return false
   }
 
   const w = window as {

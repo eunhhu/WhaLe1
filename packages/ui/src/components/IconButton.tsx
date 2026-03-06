@@ -9,6 +9,10 @@ export interface IconButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElem
   size?: IconButtonSize
 }
 
+type NativeButtonType = 'button' | 'submit' | 'reset' | 'menu'
+
+const defaultButtonType: NativeButtonType = 'button'
+
 const sizeMap: Record<IconButtonSize, string> = {
   sm: spacing[6],
   md: spacing[8],
@@ -17,7 +21,7 @@ const sizeMap: Record<IconButtonSize, string> = {
 
 export const IconButton: Component<IconButtonProps> = (props) => {
   const merged = mergeProps({ variant: 'ghost' as IconButtonVariant, size: 'md' as IconButtonSize }, props)
-  const [local, rest] = splitProps(merged, ['variant', 'size', 'style', 'children'])
+  const [local, rest] = splitProps(merged, ['variant', 'size', 'style', 'children', 'type'])
 
   const style = (): JSX.CSSProperties => ({
     display: 'inline-flex',
@@ -36,7 +40,7 @@ export const IconButton: Component<IconButtonProps> = (props) => {
   })
 
   return (
-    <button style={style()} {...rest}>
+    <button style={style()} type={(local.type ?? defaultButtonType) as NativeButtonType} {...rest}>
       {local.children}
     </button>
   )

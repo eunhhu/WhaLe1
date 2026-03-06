@@ -3,6 +3,26 @@ import type { WhaleTheme } from '../theme/themes'
 import { darkTheme } from '../theme/themes'
 import { globalResetStyles } from '../theme/global-styles'
 
+let transparentProviderCount = 0
+
+function applyTransparentGlobals(): void {
+  document.documentElement.setAttribute('data-transparent', 'true')
+  document.body.setAttribute('data-transparent', 'true')
+  document.documentElement.style.setProperty('background', 'transparent', 'important')
+  document.documentElement.style.setProperty('background-color', 'transparent', 'important')
+  document.body.style.setProperty('background', 'transparent', 'important')
+  document.body.style.setProperty('background-color', 'transparent', 'important')
+}
+
+function clearTransparentGlobals(): void {
+  document.documentElement.removeAttribute('data-transparent')
+  document.body.removeAttribute('data-transparent')
+  document.documentElement.style.removeProperty('background')
+  document.documentElement.style.removeProperty('background-color')
+  document.body.style.removeProperty('background')
+  document.body.style.removeProperty('background-color')
+}
+
 export interface ThemeProviderProps {
   theme?: WhaleTheme
   transparent?: boolean
@@ -11,6 +31,23 @@ export interface ThemeProviderProps {
 
 export const ThemeProvider: Component<ThemeProviderProps> = (props) => {
   let styleEl: HTMLStyleElement | undefined
+  let transparentApplied = false
+
+  const syncTransparentGlobals = (enabled: boolean) => {
+    if (enabled === transparentApplied) return
+    transparentApplied = enabled
+
+    if (enabled) {
+      transparentProviderCount += 1
+      applyTransparentGlobals()
+      return
+    }
+
+    transparentProviderCount = Math.max(transparentProviderCount - 1, 0)
+    if (transparentProviderCount === 0) {
+      clearTransparentGlobals()
+    }
+  }
 
   createEffect(() => {
     if (!styleEl) {
@@ -20,31 +57,12 @@ export const ThemeProvider: Component<ThemeProviderProps> = (props) => {
     }
     styleEl.textContent = globalResetStyles
 
-    if (props.transparent) {
-      document.documentElement.setAttribute('data-transparent', 'true')
-      document.body.setAttribute('data-transparent', 'true')
-      document.documentElement.style.setProperty('background', 'transparent', 'important')
-      document.documentElement.style.setProperty('background-color', 'transparent', 'important')
-      document.body.style.setProperty('background', 'transparent', 'important')
-      document.body.style.setProperty('background-color', 'transparent', 'important')
-    } else {
-      document.documentElement.removeAttribute('data-transparent')
-      document.body.removeAttribute('data-transparent')
-      document.documentElement.style.removeProperty('background')
-      document.documentElement.style.removeProperty('background-color')
-      document.body.style.removeProperty('background')
-      document.body.style.removeProperty('background-color')
-    }
+    syncTransparentGlobals(Boolean(props.transparent))
   })
 
   onCleanup(() => {
     styleEl?.remove()
-    document.documentElement.removeAttribute('data-transparent')
-    document.body.removeAttribute('data-transparent')
-    document.documentElement.style.removeProperty('background')
-    document.documentElement.style.removeProperty('background-color')
-    document.body.style.removeProperty('background')
-    document.body.style.removeProperty('background-color')
+    syncTransparentGlobals(false)
   })
 
   const theme = () => props.theme ?? darkTheme

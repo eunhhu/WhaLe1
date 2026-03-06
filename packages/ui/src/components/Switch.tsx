@@ -4,6 +4,7 @@ import { colors, radius, transition } from '../theme/tokens'
 export interface SwitchProps {
   checked?: boolean
   onChange?: (checked: boolean) => void
+  onClick?: JSX.EventHandlerUnion<HTMLButtonElement, MouseEvent>
   disabled?: boolean
   style?: JSX.CSSProperties
 }
@@ -12,10 +13,14 @@ const TRACK_WIDTH = 40
 const TRACK_HEIGHT = 22
 const THUMB_SIZE = 16
 const THUMB_OFFSET = 2
+type SwitchClickEvent = MouseEvent & {
+  currentTarget: HTMLButtonElement
+  target: Element
+}
 
 export const Switch: Component<SwitchProps> = (props) => {
   const merged = mergeProps({ disabled: false }, props)
-  const [local, rest] = splitProps(merged, ['checked', 'onChange', 'disabled', 'style'])
+  const [local, rest] = splitProps(merged, ['checked', 'onChange', 'disabled', 'style', 'onClick'])
 
   const [internalChecked, setInternalChecked] = createSignal(Boolean(local.checked))
   const isControlled = () => typeof local.checked === 'boolean'
@@ -28,7 +33,19 @@ export const Switch: Component<SwitchProps> = (props) => {
     }
   })
 
-  const handleClick = () => {
+  const handleClick: JSX.EventHandler<HTMLButtonElement, MouseEvent> = (event) => {
+    if (local.onClick) {
+      if (typeof local.onClick === 'function') {
+        local.onClick(event as SwitchClickEvent)
+      } else {
+        const bound = local.onClick as JSX.BoundEventHandler<
+          HTMLButtonElement,
+          MouseEvent
+        >
+        bound[0](bound[1], event as SwitchClickEvent)
+      }
+    }
+    if (event.defaultPrevented) return
     if (local.disabled) return
     const next = !isChecked()
     if (!isControlled()) {

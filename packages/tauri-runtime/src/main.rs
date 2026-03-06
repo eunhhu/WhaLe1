@@ -135,11 +135,30 @@ pub fn run() {
                         if payload.get("id").and_then(|v| v.as_str()) == Some("__devtools_toggle__")
                             && payload.get("phase").and_then(|v| v.as_str()) == Some("press")
                         {
-                            if let Err(err) = commands::window_cmd::window_toggle(
+                            if let Some(window) = app_handle.get_webview_window("__devtools__") {
+                                match window.is_visible() {
+                                    Ok(true) => {
+                                        let _ = window.hide();
+                                    }
+                                    Ok(false) => {
+                                        let _ = window.show();
+                                        let _ = window.set_focus();
+                                    }
+                                    Err(err) => {
+                                        log::warn!(
+                                            "[whale:window] failed to query __devtools__ visibility: {}",
+                                            err
+                                        );
+                                    }
+                                }
+                            } else if let Err(err) = commands::window_cmd::window_show(
+                                app_handle
+                                    .get_webview_window("main")
+                                    .expect("main window should exist"),
                                 app_handle.clone(),
                                 "__devtools__".to_string(),
                             ) {
-                                log::warn!("[whale:window] failed to toggle __devtools__: {}", err);
+                                log::warn!("[whale:window] failed to show __devtools__: {}", err);
                             }
                         }
                     }
