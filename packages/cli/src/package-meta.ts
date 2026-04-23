@@ -69,8 +69,6 @@ export function buildCliImportAliases(
   cliPackageName: string,
 ): Record<string, string> {
   return {
-    '@whale/cli': cliConfigDistPath,
-    '@whale/cli/config': cliConfigDistPath,
     '@whale1/cli': cliConfigDistPath,
     '@whale1/cli/config': cliConfigDistPath,
     [cliPackageName]: cliConfigDistPath,
