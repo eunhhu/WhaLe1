@@ -1,41 +1,56 @@
+<div align="center">
+
 # WhaLe
 
-WhaLe는 **Tauri + SolidJS + Frida** 기반 트레이너 앱 프레임워크입니다.
+**A Tauri + SolidJS + Frida framework for building trainer-style desktop apps.**
 
-핵심은 다음 3가지를 쉽게 만드는 것입니다.
-- 멀티 윈도우 앱(main/overlay/settings)
-- UI ↔ Rust ↔ Frida 스토어 동기화
-- dev/build/create 자동화 CLI
+[![CI](https://github.com/eunhhu/WhaLe1/actions/workflows/ci.yml/badge.svg)](https://github.com/eunhhu/WhaLe1/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![npm: @whale1/sdk](https://img.shields.io/npm/v/@whale1/sdk?label=%40whale1%2Fsdk)](https://www.npmjs.com/package/@whale1/sdk)
+[![npm: @whale1/cli](https://img.shields.io/npm/v/@whale1/cli?label=%40whale1%2Fcli)](https://www.npmjs.com/package/@whale1/cli)
+
+</div>
+
+WhaLe bundles up the three things that are hard about building Frida-based trainer apps:
+
+- **Multi-window apps** (`main` / `overlay` / `settings`) driven from a single config file.
+- **UI ↔ Rust ↔ Frida store sync**, so UI reads/writes, Rust state, and injected Frida scripts all see the same values in real time.
+- **A `whale` CLI** that handles `dev`, `build`, `create`, and config generation for you.
 
 ---
 
-## 1분 시작 (신규 프로젝트)
+## Quick start (new project)
 
-### 요구 사항
+### Requirements
+
 - `Node.js 20+`
-- `npm` (또는 `bun`)
-- Rust는 선택 사항 (없어도 frontend-only 개발 가능)
+- `npm` (or `bun`)
+- Rust is optional — you can develop the UI without it.
 
-### 생성
+### Scaffold
+
 ```bash
 npx @whale1/cli create my-whale-app
 cd my-whale-app
 npm install
 ```
 
-### 개발 실행
+### Run in dev
+
 ```bash
 npm run dev
 ```
 
-### Rust 없이 UI만 개발
+### UI-only (no Rust toolchain)
+
 ```bash
 WHALE_SKIP_TAURI=1 npm run dev
 ```
 
-이 모드에서는 HMR/UI 개발은 가능하고, Tauri 네이티브 기능(윈도우 제어/글로벌 입력/Frida IPC)은 비활성입니다.
+In this mode you still get Vite HMR and the full UI, but native features (window control, global hotkeys, Frida IPC) are disabled.
 
-### 빌드
+### Build
+
 ```bash
 # frontend + tauri bundle
 npm run build
@@ -46,7 +61,7 @@ WHALE_SKIP_TAURI=1 npm run build
 
 ---
 
-## 생성되는 starter 구성
+## Generated starter layout
 
 ```txt
 my-whale-app/
@@ -58,25 +73,27 @@ my-whale-app/
     script/main.ts
 ```
 
-- 기본 앱 아이콘은 `assets/icon.png`
-- 앱명/윈도우 타이틀/식별자는 `whale.config.ts`에서 설정
-- `frida.scripts`에 등록한 스크립트는 attach 시 자동 로드됨 (별도 `session.ts` 불필요)
+- The default app icon lives at `assets/icon.png`.
+- App name / window titles / identifier are configured in `whale.config.ts`.
+- Any script registered under `frida.scripts` is auto-loaded when you attach — no separate `session.ts` boilerplate needed.
 
 ---
 
-## CLI 명령
+## CLI commands
 
-- `whale create <name>`: 새 프로젝트 생성
-- `whale dev`: 개발 서버 + Tauri dev
-- `whale build`: 프로덕션 빌드
-- `whale config:generate [out]`: tauri config 생성
-- `whale clean [--all]`: `.whale`, `src-tauri/target` 정리 (`--all`은 `node_modules` 포함)
+| Command | Description |
+|---|---|
+| `whale create <name>` | Scaffold a new project from the starter template. |
+| `whale dev` | Run Vite dev server and (optionally) Tauri dev. |
+| `whale build` | Production build of frontend and Tauri bundle. |
+| `whale config:generate [out]` | Generate `tauri.conf.json` from `whale.config.ts`. |
+| `whale clean [--all]` | Remove `.whale/` and `src-tauri/target`. `--all` also wipes `node_modules`. |
 
 ---
 
-## 런타임 안전 처리 (권장)
+## Runtime safety pattern
 
-Rust/Tauri가 없는 환경도 고려해서 네이티브 호출은 가드하세요.
+Guard native calls so your app also works in the browser / UI-only mode:
 
 ```ts
 import { isTauriRuntime, safeInvoke } from '@whale1/sdk'
@@ -86,41 +103,48 @@ if (isTauriRuntime()) {
 }
 ```
 
+`safeInvoke` / `safeInvokeVoid` / `safeListen` never throw when the Tauri backend is absent — they simply resolve to `undefined` / no-op — so you can sprinkle them through UI code without feature-gating everything.
+
 ---
 
-## 이 저장소에서 개발하기 (프레임워크 기여)
+## Working in this repo (framework contributors)
 
-### 설치
+### Install
+
 ```bash
 bun install
 ```
 
-### example 앱 실행
+### Run the example app
+
 ```bash
 bun --filter whale-example-trainer dev
 ```
 
-### example 앱을 frontend-only로 실행
+### Frontend-only example
+
 ```bash
 WHALE_SKIP_TAURI=1 bun --filter whale-example-trainer dev
 ```
 
-### 테스트/빌드
+### Test / build
+
 ```bash
-bun test
-bun run build
+bun run test        # vitest across all packages
+bun run build       # build sdk + ui + cli + example (frontend-only)
+bun run typecheck   # build packages and typecheck the example app
 ```
 
 ---
 
-## 문서
+## Documentation
 
-- [문서 인덱스](./docs/README.md)
-- [아키텍처](./docs/architecture.md)
+- [Docs index](./docs/README.md)
+- [Architecture](./docs/architecture.md)
 - [SDK API](./docs/api/sdk.md)
-- [설정 가이드](./docs/config.md)
-- [개발/디버깅 가이드](./docs/dev-and-troubleshooting.md)
+- [Configuration reference](./docs/config.md)
+- [Dev & troubleshooting](./docs/dev-and-troubleshooting.md)
 
-## 라이선스
+## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
