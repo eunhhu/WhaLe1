@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build workspace packages
+        run: bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build
+      - name: Typecheck example
+        run: bun --filter whale-example-trainer typecheck
+      - name: Unit tests
+        run: bun run test
+      - name: Frontend-only build (example)
+        env:
+          WHALE_SKIP_TAURI: "1"
+        run: bun --filter whale-example-trainer build

@@ -1,6 +1,17 @@
 {
   "name": "whale",
   "private": true,
+  "description": "Tauri + SolidJS + Frida trainer-app framework (multi-window, store sync, CLI).",
+  "license": "MIT",
+  "homepage": "https://github.com/eunhhu/WhaLe1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eunhhu/WhaLe1.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eunhhu/WhaLe1/issues"
+  },
+  "keywords": ["tauri", "solidjs", "frida", "framework", "trainer", "monorepo"],
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -9,6 +20,7 @@
     "dev": "bun --filter @whale1/cli dev",
     "build": "bun run --cwd packages/sdk build && bun run --cwd packages/ui build && bun run --cwd packages/cli build && WHALE_SKIP_TAURI=1 bun run --cwd apps/example build",
     "test": "bun x vitest --run --dir packages --exclude '**/dist/**'",
+    "typecheck": "bun --filter @whale1/sdk build && bun --filter @whale1/ui build && bun --filter @whale1/cli build && bun --filter whale-example-trainer typecheck",
     "publish:sdk": "npm publish --access public -w @whale1/sdk",
     "publish:ui": "npm publish --access public -w @whale1/ui",
     "publish:cli": "npm publish --access public -w @whale1/cli",

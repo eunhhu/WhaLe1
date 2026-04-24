@@ -1,19 +1,19 @@
-# 개발/디버깅 가이드
+# Dev & troubleshooting guide
 
-## 1) 개발 명령 흐름
+## 1) What `whale dev` does
 
-`whale dev`는 내부적으로 아래 순서로 실행됩니다.
+Internally, in this order:
 
-1. `whale.config.ts` 로드
-2. `.whale`에 HTML/bootstrap 엔트리 생성
-3. `.whale/tauri.conf.json` 생성
-4. Vite dev server 시작(HMR 포함)
-5. Rust 툴체인 확인
-6. 가능하면 Tauri dev 실행, 아니면 frontend-only 모드로 유지
+1. Load `whale.config.ts`.
+2. Generate `.whale/*.html` + bootstrap entries.
+3. Generate `.whale/tauri.conf.json`.
+4. Start the Vite dev server (with HMR).
+5. Check the Rust toolchain.
+6. Start `tauri dev` if Rust is available, otherwise stay in frontend-only mode.
 
-## 2) 자주 쓰는 실행 명령
+## 2) Common commands
 
-루트 기준:
+From the repo root:
 
 ```bash
 bun install
@@ -22,96 +22,96 @@ bun --filter whale-example-trainer build
 bun test
 ```
 
-frontend-only 모드:
+Frontend-only mode:
 
 ```bash
 WHALE_SKIP_TAURI=1 bun --filter whale-example-trainer dev
 ```
 
-## 3) HMR이 안 보일 때
+## 3) HMR isn't reloading
 
-체크 순서:
+Walk through in order:
 
-1. `whale dev` 로그에서 Vite 주소가 출력되는지 확인
-2. `.whale/__whale_entry_*.ts`가 생성되었는지 확인
-3. 브라우저 콘솔에서 엔트리 모듈 로드 에러 확인
-4. `build.devHost/devPort`와 방화벽/포트 충돌 확인
+1. Check that `whale dev` printed the Vite URL.
+2. Confirm `.whale/__whale_entry_*.ts` files exist.
+3. Look for module-load errors in the browser console.
+4. Check `build.devHost` / `build.devPort` for firewall / port conflicts.
 
-참고:
+Notes:
 
-- bootstrap 코드에 `import.meta.hot.accept(...)`가 자동 생성됩니다.
+- The generated bootstrap code wires up `import.meta.hot.accept(...)` automatically.
 
-## 4) DevTools 실시간 반영이 느리거나 안 될 때
+## 4) DevTools aren't updating in real time
 
-체크 항목:
+Things to check:
 
-1. debug 빌드인지 확인 (`cfg!(debug_assertions)` 경로)
-2. `__devtools__` window가 capability windows에 포함되는지 확인
-3. F12 토글 핫키가 등록됐는지 확인
-4. 이벤트 스트림 환경 변수 확인
+1. You're on a debug build (behind `cfg!(debug_assertions)`).
+2. `__devtools__` is included in the capability windows list.
+3. The F12 toggle hotkey is registered.
+4. Event-stream env vars:
    - `WHALE_DEVTOOLS_INPUT_STREAM`
    - `WHALE_DEVTOOLS_FRIDA_LOG`
 
-설명:
+How they work:
 
-- 위 env 값이 `0/false/no/off`가 아니면 기본적으로 스트림 emit가 켜집니다.
+- If the env var is anything other than `0` / `false` / `no` / `off`, stream emits are on.
 
-## 5) 창이 닫혀서 다시 안 열릴 때
+## 5) A window was closed and won't reopen
 
-현재 runtime 동작:
+Current runtime behaviour:
 
-- `window_show`, `window_toggle`는 창이 없으면 config 기반으로 재생성 후 표시
-- `window_hide`, `window_close`는 기존 창이 있어야 동작
+- `window_show` / `window_toggle` re-create the window from config if it's gone.
+- `window_hide` / `window_close` require an existing window.
 
-따라서 앱에서 "복구 열기"는 `show/toggle`를 사용하세요.
+So for "recovery open" actions, use `show` / `toggle`.
 
-## 6) 핫키 이벤트가 이상할 때
+## 6) Hotkey events look wrong
 
-현재 구현은 다음을 보장합니다.
+The runtime guarantees:
 
-- 중복 key press 이벤트는 무시
-- 조합키는 `active_hotkeys` 기반으로 press/release 전이 계산
-- SDK `useHotkey`는 `phase` 기반 콜백 분기 지원
+- Duplicate press events for an already-held key are dropped.
+- Multi-key combos compute press/release transitions from `active_hotkeys` state.
+- The SDK `useHotkey` supports `phase`-based callbacks.
 
-디버깅 팁:
+Debugging tips:
 
-1. DevTools Input 탭에서 `input:key-event`/`input:hotkey-triggered` 흐름 확인
-2. 조합키 문자열을 정규화 규칙에 맞춰 사용 (`ctrl`, `shift`, `alt`, `meta`)
-3. 동일 hotkey를 중복 등록했는지 확인
+1. Watch `input:key-event` / `input:hotkey-triggered` in the DevTools Input tab.
+2. Use normalized combo strings (`ctrl`, `shift`, `alt`, `meta`).
+3. Make sure the same hotkey isn't registered twice.
 
-## 7) Persist 값이 재시작 후 UI에 반영되지 않을 때
+## 7) Persisted values don't come back after restart
 
-정상 경로는 아래와 같습니다.
+Normal path:
 
-1. `createSyncStore` 생성
-2. `store_get_all` 호출로 snapshot hydrate
-3. patch 적용 후 reactive UI 갱신
+1. `createSyncStore` is called.
+2. `store_get_all` hydrates the snapshot.
+3. Patches apply and reactive UI updates.
 
-점검 항목:
+If the snapshot doesn't land:
 
-1. store 이름이 UI/Frida/설정에서 동일한지
-2. `defaults` 키와 snapshot 키가 동일한지
-3. 컴포넌트 마운트 시점에 store가 생성되는지
-4. runtime persist toggle이 꺼져 있지 않은지
+1. Check that the store name is the same in UI, Frida script, and config.
+2. Check that `defaults` keys match the snapshot keys.
+3. Make sure the store is actually created while the component is mounted.
+4. Confirm the runtime persist toggle hasn't been disabled.
 
-## 8) 아이콘이 기본 Tauri 아이콘으로 나올 때
+## 8) Icon shows as the default Tauri icon
 
-체크 순서:
+Walk through:
 
-1. `whale.config.ts`의 `app.icon` 경로가 존재하는지
-2. 없으면 `assets/icon.png`가 프로젝트/상위 워크스페이스에 존재하는지
-3. `whale dev/build` 실행 시 `tauri icon` 로그가 나오는지
-4. `src-tauri/icons/*` 생성 결과가 갱신됐는지
+1. Does `app.icon` in `whale.config.ts` point to an existing file?
+2. If it's missing, is `assets/icon.png` present in the project or an ancestor workspace?
+3. Did `whale dev/build` actually run `tauri icon` (check the logs)?
+4. Is `src-tauri/icons/*` freshly regenerated?
 
-## 9) Rust 없는 개발자를 위한 안전 운영
+## 9) Working without a Rust toolchain
 
-권장 방식:
+Recommended approach:
 
-1. UI 개발은 `WHALE_SKIP_TAURI=1`으로 진행
-2. 네이티브 기능 의존 코드는 `isTauriRuntime()`으로 가드
-3. `safeInvoke`/`safeListen`을 사용해 런타임 부재 시 앱이 죽지 않게 유지
+1. Develop the UI with `WHALE_SKIP_TAURI=1`.
+2. Guard native-only code with `isTauriRuntime()`.
+3. Use `safeInvoke` / `safeListen` so missing native calls don't crash the app.
 
-예시:
+Example:
 
 ```ts
 if (isTauriRuntime()) {
